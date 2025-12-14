@@ -480,6 +480,7 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 	}
 
 	prevClass := getBreakClass(runes[0])
+	lastNonSpaceClass := prevClass // Track last non-SP class for LB14
 
 	for i := 1; i < len(runes); i++ {
 		currClass := getBreakClass(runes[i])
@@ -496,15 +497,17 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			breakPoints = append(breakPoints, bytePos)
 		case BreakIndirect:
 			// Indirect break (usually spaces) - add for word boundaries
-			// But respect LB6 and LB13
+			// But respect LB6, LB13, LB14
 			if prevClass == ClassSP {
-				// LB6: Do not break before hard line breaks (BK, CR, LF, NL)
-				// LB13: Do not break before CL, CP, EX, IS (closing punct)
-				// LB16: Do not break before NS (nonstarters)
-				if currClass == ClassBK || currClass == ClassCR || currClass == ClassLF ||
+				// LB14: Do not break after OP, even if spaces intervene (OP SP* ×)
+				if lastNonSpaceClass == ClassOP || lastNonSpaceClass == ClassQU {
+					// Don't break - we're in "OP SP*" or "QU SP*" sequence
+				} else if currClass == ClassBK || currClass == ClassCR || currClass == ClassLF ||
 					currClass == ClassNL || currClass == ClassCL || currClass == ClassCP ||
 					currClass == ClassEX || currClass == ClassIS || currClass == ClassNS {
-					// Don't break
+					// LB6: Do not break before hard line breaks (BK, CR, LF, NL)
+					// LB13: Do not break before CL, CP, EX, IS (closing punct)
+					// LB16: Do not break before NS (nonstarters)
 				} else {
 					bytePos := len(string(runes[:i]))
 					breakPoints = append(breakPoints, bytePos)
@@ -540,14 +543,16 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 				}
 			} else if prevClass == ClassSP {
 				// LB18: Break after spaces (word boundaries)
-				// But respect LB6 and LB13
-				// LB6: Do not break before hard line breaks
-				// LB13: Do not break before CL, CP, EX, IS
-				// LB16: Do not break before NS (nonstarters)
-				if currClass == ClassBK || currClass == ClassCR || currClass == ClassLF ||
+				// But respect LB6, LB13, LB14, LB16
+				// LB14: Do not break after OP, even if spaces intervene (OP SP* ×)
+				if lastNonSpaceClass == ClassOP || lastNonSpaceClass == ClassQU {
+					// Don't break - we're in "OP SP*" or "QU SP*" sequence
+				} else if currClass == ClassBK || currClass == ClassCR || currClass == ClassLF ||
 					currClass == ClassNL || currClass == ClassCL || currClass == ClassCP ||
 					currClass == ClassEX || currClass == ClassIS || currClass == ClassNS {
-					// Don't break before these characters, even after space
+					// LB6: Do not break before hard line breaks
+					// LB13: Do not break before CL, CP, EX, IS
+					// LB16: Do not break before NS (nonstarters)
 				} else {
 					bytePos := len(string(runes[:i]))
 					breakPoints = append(breakPoints, bytePos)
@@ -569,6 +574,10 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 		// Update previous class (combining marks don't change it)
 		if currClass != ClassCM {
 			prevClass = currClass
+			// Track last non-space class for LB14 (OP SP* ×)
+			if currClass != ClassSP {
+				lastNonSpaceClass = currClass
+			}
 		}
 	}
 
