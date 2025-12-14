@@ -424,20 +424,30 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 	n := len(classes)
 
 	// W1: NSM -> preceding class (or embedding level direction)
+	// Look for preceding character at same level
 	for i := 0; i < n; i++ {
 		if classes[i] == ClassNSM {
-			// Find preceding character that wasn't removed
+			currentLevel := levels[i]
+			if currentLevel < 0 {
+				continue
+			}
+
+			// Find preceding character at same level that wasn't removed
 			foundPreceding := false
 			for j := i - 1; j >= 0; j-- {
-				if levels[j] >= 0 {
+				if levels[j] < 0 {
+					continue // Skip removed characters
+				}
+				if levels[j] == currentLevel {
 					classes[i] = classes[j]
 					foundPreceding = true
 					break
 				}
 			}
+
 			if !foundPreceding {
 				// Use embedding level direction (sos)
-				if levels[i]%2 == 0 {
+				if currentLevel%2 == 0 {
 					classes[i] = ClassL
 				} else {
 					classes[i] = ClassR
@@ -447,10 +457,22 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 	}
 
 	// W2: EN after AL -> AN
+	// Only look at same embedding level
 	for i := 0; i < n; i++ {
 		if classes[i] == ClassEN {
-			// Look back for AL
+			currentLevel := levels[i]
+			if currentLevel < 0 {
+				continue
+			}
+
+			// Look back for AL at same level
 			for j := i - 1; j >= 0; j-- {
+				if levels[j] < 0 {
+					continue // Skip removed characters
+				}
+				if levels[j] != currentLevel {
+					continue // Different level
+				}
 				if classes[j] == ClassAL {
 					classes[i] = ClassAN
 					break
@@ -484,28 +506,42 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 	}
 
 	// W5: Sequence of ET adjacent to EN -> EN
+	// A sequence of ET is adjacent to EN if there's an EN before or after the sequence
 	for i := 0; i < n; i++ {
 		if classes[i] == ClassET {
-			// Check if adjacent to EN
 			hasEN := false
-			// Check before
-			for j := i - 1; j >= 0 && classes[j] == ClassET; j-- {
-				if j > 0 && classes[j-1] == ClassEN {
-					hasEN = true
-					break
-				}
+
+			// Find the start of the ET sequence
+			start := i
+			for start > 0 && classes[start-1] == ClassET {
+				start--
 			}
-			// Check after
-			if !hasEN {
-				for j := i + 1; j < n && classes[j] == ClassET; j++ {
-					if j < n-1 && classes[j+1] == ClassEN {
-						hasEN = true
-						break
+
+			// Find the end of the ET sequence
+			end := i
+			for end < n-1 && classes[end+1] == ClassET {
+				end++
+			}
+
+			// Check if there's an EN before the sequence
+			if start > 0 && classes[start-1] == ClassEN {
+				hasEN = true
+			}
+
+			// Check if there's an EN after the sequence
+			if !hasEN && end < n-1 && classes[end+1] == ClassEN {
+				hasEN = true
+			}
+
+			// If adjacent to EN, mark all ET in sequence as EN
+			if hasEN {
+				for j := start; j <= end; j++ {
+					if classes[j] == ClassET {
+						classes[j] = ClassEN
 					}
 				}
-			}
-			if hasEN {
-				classes[i] = ClassEN
+				// Skip to end of sequence
+				i = end
 			}
 		}
 	}
@@ -518,13 +554,23 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 	}
 
 	// W7: EN after L -> L (or sos L)
+	// Search for strong types at the same level
 	for i := 0; i < n; i++ {
 		if classes[i] == ClassEN {
-			// Look back for strong type (L or R)
+			currentLevel := levels[i]
+			if currentLevel < 0 {
+				continue
+			}
+
+			// Look back for strong type (L or R) at same or higher level
 			foundStrong := false
 			for j := i - 1; j >= 0; j-- {
 				if levels[j] < 0 {
 					continue // Skip removed characters
+				}
+				// Only consider characters at same level
+				if levels[j] != currentLevel {
+					continue
 				}
 				if classes[j] == ClassL {
 					classes[i] = ClassL
@@ -535,10 +581,10 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 					break
 				}
 			}
-			// If no strong type found, use sos (start of sequence)
+			// If no strong type found at same level, use sos (start of sequence)
 			// sos is L for even levels, R for odd levels
 			if !foundStrong {
-				if levels[i]%2 == 0 {
+				if currentLevel%2 == 0 {
 					classes[i] = ClassL
 				}
 				// else stay EN for odd levels
@@ -551,32 +597,52 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 func resolveNeutralTypes(classes []BidiClass, levels []int, paraLevel int) {
 	n := len(classes)
 
+	// Helper to check if a class is strong (L, R, or AN/EN which behave as R)
+	isStrongL := func(c BidiClass) bool {
+		return c == ClassL
+	}
+	isStrongR := func(c BidiClass) bool {
+		return c == ClassR || c == ClassAN || c == ClassEN
+	}
+
 	// N1 and N2: Neutrals take direction from surrounding strong types
 	for i := 0; i < n; i++ {
 		if classes[i] == ClassWS || classes[i] == ClassON ||
 			classes[i] == ClassB || classes[i] == ClassS {
 
 			// Find preceding strong type
-			prevStrong := BidiClass(-1)
+			prevIsL := false
+			prevIsR := false
 			for j := i - 1; j >= 0; j-- {
-				if classes[j] == ClassL || classes[j] == ClassR {
-					prevStrong = classes[j]
+				if isStrongL(classes[j]) {
+					prevIsL = true
+					break
+				} else if isStrongR(classes[j]) {
+					prevIsR = true
 					break
 				}
 			}
 
 			// Find following strong type
-			nextStrong := BidiClass(-1)
+			nextIsL := false
+			nextIsR := false
 			for j := i + 1; j < n; j++ {
-				if classes[j] == ClassL || classes[j] == ClassR {
-					nextStrong = classes[j]
+				if isStrongL(classes[j]) {
+					nextIsL = true
+					break
+				} else if isStrongR(classes[j]) {
+					nextIsR = true
 					break
 				}
 			}
 
 			// N1: If between same strong types, take that type
-			if prevStrong == nextStrong && prevStrong != -1 {
-				classes[i] = prevStrong
+			if (prevIsL && nextIsL) || (prevIsR && nextIsR) {
+				if prevIsL {
+					classes[i] = ClassL
+				} else {
+					classes[i] = ClassR
+				}
 			} else {
 				// N2: Take embedding level direction
 				if levels[i]%2 == 0 {
