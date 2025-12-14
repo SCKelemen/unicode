@@ -223,6 +223,35 @@ func getBreakClass(r rune) BreakClass {
 		return ClassID
 	}
 
+	// Hangul syllables - must check before generic letter check
+	// Hangul Syllables block: U+AC00-U+D7AF
+	if r >= 0xAC00 && r <= 0xD7AF {
+		// Simplified: treat all Hangul syllables as H2
+		// (Proper implementation would distinguish H2 vs H3 based on final jamo)
+		return ClassH2
+	}
+
+	// Hangul Jamo - must check before generic letter check
+	// Hangul Jamo: U+1100-U+11FF
+	if r >= 0x1100 && r <= 0x11FF {
+		if r >= 0x1100 && r <= 0x1159 {
+			return ClassJL // Leading consonants
+		} else if r >= 0x1160 && r <= 0x11A7 {
+			return ClassJV // Vowels
+		} else {
+			return ClassJT // Trailing consonants
+		}
+	}
+
+	// Indic scripts (Aksara-based) - must check before generic letter check
+	// These scripts use virama-based conjunct formation
+	// Balinese: U+1B00-U+1B7F
+	// Brahmi: U+11000-U+1107F
+	// Other Indic scripts would need more ranges
+	if (r >= 0x1B00 && r <= 0x1B7F) || (r >= 0x11000 && r <= 0x1107F) {
+		return ClassAK
+	}
+
 	// Hebrew letters
 	if unicode.Is(unicode.Hebrew, r) {
 		return ClassHL
@@ -357,6 +386,17 @@ var pairTable = map[[2]BreakClass]BreakAction{
 	{ClassAP, ClassAI}: BreakDirect,
 	{ClassAI, ClassAS}: BreakDirect,
 	{ClassAS, ClassAI}: BreakDirect,
+	// AI allows breaks with Hangul classes (H2, H3, JL, JV, JT)
+	{ClassAI, ClassH2}: BreakDirect,
+	{ClassH2, ClassAI}: BreakDirect,
+	{ClassAI, ClassH3}: BreakDirect,
+	{ClassH3, ClassAI}: BreakDirect,
+	{ClassAI, ClassJL}: BreakDirect,
+	{ClassJL, ClassAI}: BreakDirect,
+	{ClassAI, ClassJV}: BreakDirect,
+	{ClassJV, ClassAI}: BreakDirect,
+	{ClassAI, ClassJT}: BreakDirect,
+	{ClassJT, ClassAI}: BreakDirect,
 
 	// Combining marks (prohibited break before)
 	{ClassXX, ClassCM}: BreakProhibited,
@@ -496,6 +536,12 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			} else if prevClass == ClassID || currClass == ClassID {
 				// Allow breaks involving ideographic characters (CJK text)
 				// Per UAX #14, ideographic characters can break between each other
+				bytePos := len(string(runes[:i]))
+				breakPoints = append(breakPoints, bytePos)
+			} else if prevClass == ClassAI || currClass == ClassAI {
+				// Allow breaks involving ambiguous East Asian characters
+				// Per UAX #14 LB28, when getBreakAction returns BreakDirect for AI,
+				// we should allow the break (already checked pairTable prohibitions)
 				bytePos := len(string(runes[:i]))
 				breakPoints = append(breakPoints, bytePos)
 			}
