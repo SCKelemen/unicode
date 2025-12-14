@@ -386,7 +386,19 @@ var pairTable = map[[2]BreakClass]BreakAction{
 	{ClassAL, ClassAI}: BreakProhibited,
 	{ClassAI, ClassHL}: BreakProhibited,
 	{ClassHL, ClassAI}: BreakProhibited,
-	// AI allows breaks with special Indic classes (AK, AP, AS)
+	// AI doesn't break from most punctuation/symbols (treats like AL)
+	{ClassAI, ClassEX}: BreakProhibited,
+	{ClassEX, ClassAI}: BreakProhibited,
+	{ClassAI, ClassIS}: BreakProhibited,
+	{ClassIS, ClassAI}: BreakProhibited,
+	{ClassAI, ClassNU}: BreakProhibited,
+	{ClassNU, ClassAI}: BreakProhibited,
+	{ClassAI, ClassHY}: BreakProhibited,
+	{ClassHY, ClassAI}: BreakProhibited,
+	// AI allows breaks with ideographic (like AL × ID)
+	{ClassAI, ClassID}: BreakDirect,
+	{ClassID, ClassAI}: BreakDirect,
+	// AI allows breaks with special Indic classes (AK, AP, AS, VF, VI)
 	{ClassAI, ClassAK}: BreakDirect,
 	{ClassAK, ClassAI}: BreakDirect,
 	{ClassAI, ClassAP}: BreakDirect,
@@ -540,19 +552,13 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 					bytePos := len(string(runes[:i]))
 					breakPoints = append(breakPoints, bytePos)
 				}
-			} else if prevClass == ClassID || currClass == ClassID {
-				// Allow breaks involving ideographic characters (CJK text)
-				// Per UAX #14, ideographic characters can break between each other
+			} else if prevClass == ClassID || currClass == ClassID ||
+				prevClass == ClassAI || currClass == ClassAI {
+				// Allow breaks involving ideographic and ambiguous East Asian characters
+				// when pairTable explicitly allows it (action == BreakDirect)
+				// This handles ID × ID, ID × AL, AI × ID, etc.
 				// LB7: Do not break before spaces or zero width space
-				if currClass != ClassSP && currClass != ClassZW {
-					bytePos := len(string(runes[:i]))
-					breakPoints = append(breakPoints, bytePos)
-				}
-			} else if prevClass == ClassAI || currClass == ClassAI {
-				// Allow breaks involving ambiguous East Asian characters
-				// Per UAX #14 LB28, when getBreakAction returns BreakDirect for AI,
-				// we should allow the break (already checked pairTable prohibitions)
-				// LB7: Do not break before spaces or zero width space
+				// Note: pairTable already prohibits AI × AL, AI × EX, AI × HY, AI × IS, AI × NU
 				if currClass != ClassSP && currClass != ClassZW {
 					bytePos := len(string(runes[:i]))
 					breakPoints = append(breakPoints, bytePos)
