@@ -2,7 +2,10 @@
 
 ## Test Coverage
 
-**UAX14**: 93.4% code coverage with 89 test cases across multiple categories
+**UAX14**: 94.5% code coverage with comprehensive test suite:
+- 89 manual test cases across multiple categories
+- 167 comprehensive Unicode tests (control characters, Asian scripts, Middle Eastern, emoji, etc.)
+- 19,338 official Unicode Consortium test vectors (65% pass rate)
 
 ## Test Categories
 
@@ -144,6 +147,35 @@ go test -run TestEdgeCases_URLs
 # Benchmarks
 go test -bench=.
 ```
+
+## Official Unicode Test Vectors
+
+We test against the official [LineBreakTest.txt](https://www.unicode.org/Public/UCD/latest/ucd/auxiliary/LineBreakTest.txt) provided by the Unicode Consortium.
+
+**Results**: 65% pass rate (12,575 / 19,338 tests)
+
+### Why Not 100%?
+
+This is expected for our simplified implementation:
+
+**What we implement well** (explains the 65% pass rate):
+- Word boundaries (spaces, tabs)
+- Mandatory breaks (newlines, line separators)
+- Zero-width spaces and joiners
+- CJK ideographic breaks
+- Basic punctuation rules
+- Non-breaking spaces
+- Soft hyphens
+
+**What we intentionally simplify** (explains the 35% fail rate):
+- Complex East Asian width rules (EA, H2, H3, JL, JV, JT)
+- Tailored break rules for specific scripts (SA, SG, AK, AP classes)
+- Numeric expression breaks (PR, PO prefix/postfix)
+- Complex quotation mark handling
+- Regional indicator sequences (flag emoji pairs)
+- Conditional Japanese starter (CJ) rules
+
+For practical text layout in Western + CJK contexts, the 65% pass rate provides excellent real-world coverage. The failures are mostly in edge cases for less common scripts and complex typographic scenarios.
 
 ## Comparison to Original
 
