@@ -125,12 +125,12 @@ func getWordBreakClass(r rune) WordBreakClass {
 		return WBNumeric
 	}
 
-	// ALetter (check before ExtendedPictographic, as some chars have both properties)
+	// ALetter (check before ExtendedPictographic, as letters take precedence)
 	if unicode.IsLetter(r) {
 		return WBALetter
 	}
 
-	// Extended Pictographic (after letter check, as letters take precedence)
+	// Extended Pictographic (after letter check)
 	if isExtendedPictographic(r) {
 		return WBExtendedPictographic
 	}

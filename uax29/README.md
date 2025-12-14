@@ -44,22 +44,24 @@ This package will provide algorithms for breaking text into meaningful units:
 
 ## Implementation Status
 
-### Grapheme Cluster Boundaries ✅ (88.9% pass rate)
+### Grapheme Cluster Boundaries ✅ (97.3% pass rate - 745/766)
 - Complete implementation with Unicode 17.0 test vectors
 - Handles combining marks, Hangul syllables, emoji sequences
-- Regional indicator pairs (flag emojis) supported
-- Known limitations: Some Indic conjunct sequences need refinement
+- Regional indicator pairs (flag emojis) working correctly
+- Prepend characters properly supported
+- Known limitations: Emoji skin tone modifiers, some Indic conjunct sequences
 
-### Word Boundaries ✅ (93.0% pass rate)
+### Word Boundaries ✅ (93.0% pass rate - 1808/1944)
 - Robust implementation suitable for most use cases
 - Handles alphabetic/numeric sequences, contractions, punctuation
 - Regional indicator pairs supported
-- Known limitations: Some extended pictographic edge cases
+- Hebrew letter handling, Katakana sequences
+- Known limitations: Some extended pictographic edge cases, complex mid-word punctuation
 
-### Sentence Boundaries ⚠️ (23.0% pass rate)
+### Sentence Boundaries ⚠️ (23.0% pass rate - 118/512)
 - Basic implementation functional but needs improvement
 - Handles common sentence terminators (., ?, !)
-- Known limitations: Complex abbreviation detection, whitespace handling
+- Known limitations: Complex abbreviation detection, whitespace handling, sentence terminal sequences
 
 ## Examples (Planned)
 
