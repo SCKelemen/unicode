@@ -106,6 +106,10 @@ const (
 	// Regional indicators
 	ClassRI BreakClass = iota + 80 // Regional Indicator
 
+	// Emoji
+	ClassEB BreakClass = iota + 85 // Emoji Base
+	ClassEM                        // Emoji Modifier
+
 	// Surrogates
 	ClassSG BreakClass = iota + 90 // Surrogate
 
@@ -177,6 +181,28 @@ func getBreakClass(r rune) BreakClass {
 	// Break Before characters
 	if r == '\u00B4' { // Acute accent
 		return ClassBB
+	}
+
+	// Prefix Numeric (currency symbols and similar)
+	switch r {
+	case '$', '£', '€', '¥', '¢', '₩', '₪', '₹', '₽', '₺', '₴', '₱', '₦', '₡', '₵':
+		return ClassPR
+	case '฿', '៛', '₮', '₲', '₸', '₼', '₾', '＄', '￡', '￥', '￦':
+		return ClassPR
+	case '+', '\u2212': // + (plus), U+2212 (minus sign)
+		return ClassPR
+	case '#', '\uFF03': // # (hash), ＃ (fullwidth hash)
+		return ClassAI // Actually varies, but commonly used as prefix
+	}
+
+	// Postfix Numeric (percent, degree, etc.)
+	switch r {
+	case '%', '‰', '‱': // %, ‰ (per mille), ‱ (per ten thousand)
+		return ClassPO
+	case '°', '℃', '℉': // degree, celsius, fahrenheit
+		return ClassPO
+	case '¢', '¤': // cent sign, currency sign
+		return ClassPO
 	}
 
 	// Punctuation
@@ -363,14 +389,30 @@ var pairTable = map[[2]BreakClass]BreakAction{
 	{ClassXX, ClassCL}: BreakProhibited,
 	{ClassXX, ClassCP}: BreakProhibited,
 
-	// Numeric
+	// Numeric (LB23, LB24, LB25)
 	{ClassNU, ClassNU}: BreakProhibited,
-	{ClassNU, ClassAL}: BreakProhibited,
-	{ClassAL, ClassNU}: BreakProhibited,
-	{ClassPR, ClassNU}: BreakProhibited,
-	{ClassNU, ClassPO}: BreakProhibited,
+	{ClassNU, ClassAL}: BreakProhibited, // LB23
+	{ClassAL, ClassNU}: BreakProhibited, // LB23
+	{ClassNU, ClassHL}: BreakProhibited, // LB23
+	{ClassHL, ClassNU}: BreakProhibited, // LB23
 	{ClassIS, ClassNU}: BreakProhibited,
 	{ClassNU, ClassIS}: BreakProhibited,
+	{ClassNU, ClassSY}: BreakProhibited,
+	{ClassSY, ClassNU}: BreakProhibited,
+
+	// LB24: Do not break between numeric prefix and letters/ideographs
+	{ClassPR, ClassAL}: BreakProhibited,
+	{ClassPR, ClassHL}: BreakProhibited,
+	{ClassPR, ClassID}: BreakProhibited,
+
+	// LB25: Do not break between numeric prefix/postfix and numbers
+	{ClassPR, ClassNU}: BreakProhibited,
+	{ClassPR, ClassOP}: BreakProhibited, // PR × (OP | HY)? NU
+	{ClassPR, ClassHY}: BreakProhibited,
+	{ClassPO, ClassNU}: BreakProhibited,
+	{ClassNU, ClassPO}: BreakProhibited,
+	{ClassOP, ClassNU}: BreakProhibited,
+	{ClassHY, ClassNU}: BreakProhibited,
 
 	// Ideographic
 	{ClassID, ClassID}: BreakDirect,

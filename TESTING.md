@@ -152,7 +152,7 @@ go test -bench=.
 
 We test against the official [LineBreakTest.txt](https://www.unicode.org/Public/UCD/latest/ucd/auxiliary/LineBreakTest.txt) provided by the Unicode Consortium.
 
-**Results**: 72.9% pass rate (14,096 / 19,338 tests)
+**Results**: 72.9% pass rate (14,099 / 19,338 tests)
 
 ### Why Not 100%?
 
@@ -163,6 +163,7 @@ This is expected for our simplified implementation:
 - Mandatory breaks (newlines, line separators, including \v and \f)
 - LB7: Do not break before spaces or zero width space
 - LB14: Do not break after opening punctuation (OP SP* ×), including QU
+- LB23, LB24, LB25: Partial numeric expression breaks (PR/PO prefix/postfix for common currency symbols)
 - Zero-width spaces and joiners
 - CJK ideographic breaks
 - Ambiguous East Asian (AI) character breaks
@@ -174,14 +175,15 @@ This is expected for our simplified implementation:
 - Soft hyphens
 
 **What we intentionally simplify** (explains the 27% fail rate):
-- Character class detection (need official LineBreak.txt property data)
+- Character class detection (need official LineBreak.txt property data for complete accuracy)
 - Complex East Asian width rules (EA class)
 - Advanced Hangul rules (LB26/LB27 - treat all Hangul as H2 for simplicity)
 - Tailored break rules for specific scripts (SA, SG, AP, AS, VF, VI classes)
-- Numeric expression breaks (PR, PO prefix/postfix - LB23, LB24, LB25)
+- Comprehensive PR/PO detection (only common currency symbols, need full Unicode data for all prefix/postfix)
+- Break After class (BA) - requires precise Unicode property data
 - Complex quotation mark handling (LB15, LB19)
 - Regional indicator sequences (RI - flag emoji pairs)
-- Emoji modifiers (EB, EM classes)
+- Emoji modifiers (EB, EM classes) - requires comprehensive emoji property data
 - Conditional Japanese starter (CJ) rules
 
 For practical text layout in Western + CJK + Korean contexts, the 73% pass rate provides excellent real-world coverage. The failures are mostly in edge cases for less common scripts and complex typographic scenarios.
