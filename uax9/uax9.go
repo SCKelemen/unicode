@@ -328,14 +328,46 @@ func processExplicitLevels(classes []BidiClass, levels []int, paraLevel int) {
 			// X5a-X5c: Isolate initiators
 			currentLevel := stack[len(stack)-1].level
 			newLevel := currentLevel
+			isolateClass := class
 
-			// FSI: determine direction from content
+			// FSI: determine direction from following strong character
 			if class == ClassFSI {
-				// Simplified: treat as LRI for now
-				class = ClassLRI
+				// Look ahead for first strong character to determine direction
+				foundStrong := false
+				isolateDepth := 0
+				for j := i + 1; j < n; j++ {
+					c := classes[j]
+					// Track isolate depth
+					if c == ClassLRI || c == ClassRLI || c == ClassFSI {
+						isolateDepth++
+					} else if c == ClassPDI {
+						if isolateDepth > 0 {
+							isolateDepth--
+						} else {
+							break // End of our isolate
+						}
+					}
+
+					// Look for strong types at same isolate level
+					if isolateDepth == 0 {
+						if c == ClassL || c == ClassEN {
+							isolateClass = ClassLRI
+							foundStrong = true
+							break
+						} else if c == ClassR || c == ClassAL {
+							isolateClass = ClassRLI
+							foundStrong = true
+							break
+						}
+					}
+				}
+				// If no strong character found, use LTR
+				if !foundStrong {
+					isolateClass = ClassLRI
+				}
 			}
 
-			if class == ClassRLI {
+			if isolateClass == ClassRLI {
 				newLevel = currentLevel + 1 + (currentLevel % 2)
 			} else {
 				newLevel = currentLevel + 2 - (currentLevel % 2)
@@ -394,10 +426,17 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 	// W1: NSM -> preceding class (or embedding level direction)
 	for i := 0; i < n; i++ {
 		if classes[i] == ClassNSM {
-			if i > 0 && levels[i-1] >= 0 {
-				classes[i] = classes[i-1]
-			} else {
-				// Use paragraph level
+			// Find preceding character that wasn't removed
+			foundPreceding := false
+			for j := i - 1; j >= 0; j-- {
+				if levels[j] >= 0 {
+					classes[i] = classes[j]
+					foundPreceding = true
+					break
+				}
+			}
+			if !foundPreceding {
+				// Use embedding level direction (sos)
 				if levels[i]%2 == 0 {
 					classes[i] = ClassL
 				} else {
@@ -634,8 +673,14 @@ func reorderByLevels(runes []rune, levels []int, paraLevel int) string {
 		indices[i] = i
 	}
 
-	// Reverse runs from highest level to lowest
-	for level := maxLevel; level > paraLevel; level-- {
+	// Reverse runs from highest level to lowest odd level (L2)
+	// Per UAX#9 L2: reverse down to the lowest odd level
+	lowestOddLevel := 1
+	if paraLevel > lowestOddLevel {
+		lowestOddLevel = paraLevel
+	}
+
+	for level := maxLevel; level >= lowestOddLevel; level-- {
 		i := 0
 		for i < n {
 			if levels[i] >= level {

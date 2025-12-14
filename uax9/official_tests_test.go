@@ -191,8 +191,14 @@ func computeReorder(classes []BidiClass, paraLevel int) []int {
 		indices[i] = i
 	}
 
-	// Reverse runs from highest to lowest level
-	for level := maxLevel; level > paraLevel; level-- {
+	// Reverse runs from highest level to lowest odd level (L2)
+	// Per UAX#9 L2: reverse down to the lowest odd level
+	lowestOddLevel := 1
+	if paraLevel > lowestOddLevel {
+		lowestOddLevel = paraLevel
+	}
+
+	for level := maxLevel; level >= lowestOddLevel; level-- {
 		i := 0
 		for i < n {
 			if levels[i] >= level {

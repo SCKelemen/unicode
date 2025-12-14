@@ -2,7 +2,7 @@
 
 Implementation of [UAX #9: Unicode Bidirectional Algorithm](https://www.unicode.org/reports/tr9/) in Go.
 
-**Status:** Implemented (50.4% pass rate on official Unicode test vectors)
+**Status:** Implemented (80.9% pass rate on official Unicode test vectors)
 
 ## Overview
 
@@ -70,8 +70,9 @@ go test -v
 ### Test Results
 
 - **Total tests**: 513,494
-- **Passed**: 258,874
-- **Pass rate**: 50.4%
+- **Passed**: 415,524
+- **Pass rate**: 80.9%
+- **Level computation accuracy**: 97.9%
 
 The test suite includes:
 - Official Unicode BidiTest.txt (513,494 test cases)
