@@ -77,9 +77,12 @@ const (
 	ClassPO                        // Postfix Numeric
 	ClassIS                        // Infix Numeric Separator
 	ClassSY                        // Symbols Allowing Break After
-	ClassAI                        // Ambiguous (Alphabetic or Ideographic)
+	ClassAI                        // Ambiguous (Alphabetic or Ideographic) - East Asian Width
 	ClassCJ                        // Conditional Japanese Starter
 	ClassSA                        // Complex Context Dependent (South East Asian)
+	ClassAK                        // Aksara (Indic scripts)
+	ClassAP                        // Aksara Prebase (Indic scripts)
+	ClassAS                        // Aksara Start (Indic scripts)
 
 	// Punctuation
 	ClassOP BreakClass = iota + 40 // Open Punctuation
@@ -167,6 +170,11 @@ func getBreakClass(r rune) BreakClass {
 		return ClassCB
 	}
 
+	// Break Before characters
+	if r == '\u00B4' { // Acute accent
+		return ClassBB
+	}
+
 	// Punctuation
 	switch r {
 	case '(', '[', '{', '⟨', '｟':
@@ -225,6 +233,13 @@ func getBreakClass(r rune) BreakClass {
 		return ClassAL
 	}
 
+	// Ambiguous East Asian Width characters (AI)
+	// These should be treated as ideographic in East Asian contexts
+	// Common AI ranges per UAX #14 and East Asian Width property
+	if isAmbiguousEastAsian(r) {
+		return ClassAI
+	}
+
 	// Symbols
 	if unicode.Is(unicode.S, r) {
 		return ClassSY
@@ -232,6 +247,35 @@ func getBreakClass(r rune) BreakClass {
 
 	// Default: alphabetic
 	return ClassAL
+}
+
+// isAmbiguousEastAsian checks if a rune is in the Ambiguous (A) East Asian Width category
+// Per UAX #11 (East Asian Width) and UAX #14, these characters have ambiguous width
+// and should allow line breaks in East Asian contexts like ideographs
+func isAmbiguousEastAsian(r rune) bool {
+	// Common ambiguous ranges - not exhaustive but covers most cases
+	switch {
+	// Miscellaneous Symbols (includes ❗ U+2757)
+	case r >= 0x2600 && r <= 0x26FF:
+		return true
+	// Dingbats
+	case r >= 0x2700 && r <= 0x27BF:
+		return true
+	// Common ambiguous punctuation and symbols
+	case r == 0x00A7 || r == 0x00A8: // § ¨ (AI)
+		return true
+	case r == 0x00B0: // ° DEGREE SIGN (AI)
+		return true
+	case r == 0x00B2 || r == 0x00B3: // ² ³ SUPERSCRIPTS (AI)
+		return true
+	case r == 0x00B6 || r == 0x00B7: // ¶ · (AI)
+		return true
+	case r >= 0x2010 && r <= 0x2027: // Various dashes and punctuation
+		return true
+	case r >= 0x2030 && r <= 0x205E: // Various punctuation and symbols
+		return true
+	}
+	return false
 }
 
 // pairTable defines line breaking actions for adjacent character classes.
@@ -298,6 +342,21 @@ var pairTable = map[[2]BreakClass]BreakAction{
 	{ClassAL, ClassID}: BreakDirect,
 	{ClassID, ClassNU}: BreakDirect,
 	{ClassNU, ClassID}: BreakDirect,
+
+	// Ambiguous East Asian (AI) - LB28: Do not break between alphabetics
+	// AI behaves like AL when adjacent to alphabetics (no break)
+	{ClassAI, ClassAI}: BreakProhibited,
+	{ClassAI, ClassAL}: BreakProhibited,
+	{ClassAL, ClassAI}: BreakProhibited,
+	{ClassAI, ClassHL}: BreakProhibited,
+	{ClassHL, ClassAI}: BreakProhibited,
+	// AI allows breaks with special Indic classes (AK, AP, AS)
+	{ClassAI, ClassAK}: BreakDirect,
+	{ClassAK, ClassAI}: BreakDirect,
+	{ClassAI, ClassAP}: BreakDirect,
+	{ClassAP, ClassAI}: BreakDirect,
+	{ClassAI, ClassAS}: BreakDirect,
+	{ClassAS, ClassAI}: BreakDirect,
 
 	// Combining marks (prohibited break before)
 	{ClassXX, ClassCM}: BreakProhibited,
