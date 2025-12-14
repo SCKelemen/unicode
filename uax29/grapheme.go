@@ -48,14 +48,31 @@ func getGraphemeBreakClass(r rune) GraphemeBreakClass {
 		return GBExtend
 	}
 
+	// Prepend (must check before Control, as many Prepend chars are in Cf category)
+	if isPrepend(r) {
+		return GBPrepend
+	}
+
 	// Control characters
-	if unicode.Is(unicode.Cc, r) || unicode.Is(unicode.Cf, r) ||
-		unicode.Is(unicode.Cs, r) || unicode.Is(unicode.Co, r) ||
-		unicode.Is(unicode.Cn, r) {
-		// Exclude CR, LF, ZWJ, and ZWNJ
-		if r != 0x000D && r != 0x000A && r != 0x200C && r != 0x200D {
+	// Note: Most Cf characters are Control, but Prepend chars (checked above) are excluded
+	// Note: Only specific Cn (unassigned) chars are Control, not all of them
+	// We use a simplified check here - a full implementation would need GraphemeBreakProperty.txt
+	if unicode.Is(unicode.Cc, r) {
+		// Exclude CR, LF (which have their own classes)
+		if r != 0x000D && r != 0x000A {
 			return GBControl
 		}
+	}
+	// Common Cf control characters (excluding Prepend which was checked earlier)
+	if (r >= 0x200B && r <= 0x200F) || (r >= 0x202A && r <= 0x202E) || (r >= 0x2060 && r <= 0x2064) || (r >= 0x2066 && r <= 0x206F) {
+		return GBControl
+	}
+	if r == 0x00AD || r == 0x061C || r == 0x180E || r == 0xFEFF || (r >= 0xFFF9 && r <= 0xFFFB) {
+		return GBControl
+	}
+	// Line and paragraph separators
+	if r == 0x2028 || r == 0x2029 {
+		return GBControl
 	}
 
 	// Hangul Syllables
@@ -97,11 +114,6 @@ func getGraphemeBreakClass(r rune) GraphemeBreakClass {
 		return GBSpacingMark
 	}
 
-	// Prepend
-	if isPrepend(r) {
-		return GBPrepend
-	}
-
 	return GBOther
 }
 
@@ -126,16 +138,33 @@ func isExtendedPictographic(r rune) bool {
 
 // isPrepend checks if a rune has the Prepend property
 func isPrepend(r rune) bool {
-	// Prepend characters (simplified list)
-	prepends := []rune{
-		0x0600, 0x0601, 0x0602, 0x0603, 0x0604, 0x0605,
-		0x06DD, 0x070F, 0x0890, 0x0891, 0x08E2,
-		0x110BD, 0x110CD,
+	// Prepend characters from Unicode GraphemeBreakProperty.txt
+	if r >= 0x0600 && r <= 0x0605 {
+		return true
 	}
-	for _, p := range prepends {
-		if r == p {
-			return true
-		}
+	if r == 0x06DD || r == 0x070F {
+		return true
+	}
+	if r >= 0x0890 && r <= 0x0891 {
+		return true
+	}
+	if r == 0x08E2 || r == 0x0D4E {
+		return true
+	}
+	if r == 0x110BD || r == 0x110CD {
+		return true
+	}
+	if r >= 0x111C2 && r <= 0x111C3 {
+		return true
+	}
+	if r == 0x113D1 || r == 0x1193F || r == 0x11941 {
+		return true
+	}
+	if r >= 0x11A84 && r <= 0x11A89 {
+		return true
+	}
+	if r == 0x11D46 || r == 0x11F02 {
+		return true
 	}
 	return false
 }
@@ -152,7 +181,6 @@ func FindGraphemeBreaks(text string) []int {
 	}
 
 	breaks := []int{0} // GB1: Break at start
-	riCount := 0       // Count of consecutive Regional Indicators
 
 	for i := 1; i < len(runes); i++ {
 		prev := getGraphemeBreakClass(runes[i-1])
@@ -164,10 +192,10 @@ func FindGraphemeBreaks(text string) []int {
 		if prev == GBCR && curr == GBLF {
 			shouldBreak = false
 		} else if prev == GBCR || prev == GBLF || prev == GBControl {
-			// GB4: Break after Control
+			// GB4: Break after Control/CR/LF
 			shouldBreak = true
 		} else if curr == GBCR || curr == GBLF || curr == GBControl {
-			// GB5: Break before Control
+			// GB5: Break before Control/CR/LF
 			shouldBreak = true
 		} else if prev == GBL && (curr == GBL || curr == GBV || curr == GBLV || curr == GBLVT) {
 			// GB6: Don't break Hangul L with following
@@ -209,22 +237,15 @@ func FindGraphemeBreaks(text string) []int {
 			}
 		} else if prev == GBRegionalIndicator && curr == GBRegionalIndicator {
 			// GB12/GB13: Regional Indicator pairs
-			// Count backwards to see if we have an even or odd number of RIs before this position
-			riCount++
-			if riCount%2 == 1 {
-				// Odd number of RIs - don't break (pair them)
+			// Count how many consecutive RIs come before the current position
+			riCountBefore := 0
+			for j := i - 1; j >= 0 && getGraphemeBreakClass(runes[j]) == GBRegionalIndicator; j-- {
+				riCountBefore++
+			}
+			// If odd number of RIs before, don't break (pair with previous RI)
+			if riCountBefore%2 == 1 {
 				shouldBreak = false
 			}
-		}
-
-		// Reset RI count if not continuing RI sequence
-		if prev != GBRegionalIndicator {
-			riCount = 0
-		}
-		if curr == GBRegionalIndicator && prev == GBRegionalIndicator {
-			// Continue counting
-		} else if curr == GBRegionalIndicator {
-			riCount = 1
 		}
 
 		if shouldBreak {
