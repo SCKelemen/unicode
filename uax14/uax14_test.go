@@ -70,7 +70,7 @@ func TestFindLineBreakOpportunities(t *testing.T) {
 			name:     "CJK text",
 			text:     "こんにちは世界",
 			hyphens:  HyphensManual,
-			expected: []int{0, 15, 18, 21}, // Simplified: breaks at ideographic transitions
+			expected: []int{0, 3, 6, 9, 12, 15, 18, 21}, // Hiragana & Kanji are ID: break between each char
 		},
 		{
 			name:     "mixed text",
@@ -112,8 +112,8 @@ func TestGetBreakClass(t *testing.T) {
 		{"newline", '\n', ClassLF},
 		{"carriage return", '\r', ClassCR},
 		{"space", ' ', ClassSP},
-		{"tab", '\t', ClassSP},
-		{"soft hyphen", '\u00AD', ClassCB},
+		{"tab", '\t', ClassBA},         // Official Unicode: BA (Break After)
+		{"soft hyphen", '\u00AD', ClassBA}, // Official Unicode: BA (Break After)
 		{"hard hyphen", '-', ClassHY},
 		{"letter", 'a', ClassAL},
 		{"digit", '5', ClassNU},

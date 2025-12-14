@@ -47,9 +47,11 @@ func ExampleFindLineBreakOpportunities_wrapping() {
 
 func ExampleFindLineBreakOpportunities_cjk() {
 	// Chinese/Japanese text can break between characters
+	// Hiragana (こんにちは) and Kanji (世界) are both classified as ID (Ideographic)
+	// allowing breaks between each character per UAX #14
 	text := "こんにちは世界"
 	breaks := uax14.FindLineBreakOpportunities(text, uax14.HyphensManual)
 
 	fmt.Printf("Text has %d break opportunities\n", len(breaks))
-	// Output: Text has 4 break opportunities
+	// Output: Text has 8 break opportunities
 }

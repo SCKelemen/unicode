@@ -57,8 +57,9 @@ const (
 	ClassSP                   // Space
 
 	// Prohibited breaks
-	ClassWJ BreakClass = iota + 5 // Word Joiner
-	ClassZW                       // Zero Width Space
+	ClassWJ  BreakClass = iota + 5 // Word Joiner
+	ClassZW                         // Zero Width Space
+	ClassZWJ                        // Zero Width Joiner
 
 	// Break opportunities
 	ClassBA BreakClass = iota + 10 // Break After
@@ -83,6 +84,9 @@ const (
 	ClassAK                        // Aksara (Indic scripts)
 	ClassAP                        // Aksara Prebase (Indic scripts)
 	ClassAS                        // Aksara Start (Indic scripts)
+	ClassVF                        // Virama Final (Indic scripts)
+	ClassVI                        // Virama (Indic scripts)
+	ClassHH                        // Hebrew Letter for Dictionary-based Breaking
 
 	// Punctuation
 	ClassOP BreakClass = iota + 40 // Open Punctuation
@@ -132,9 +136,15 @@ const (
 )
 
 // getBreakClass returns the line breaking class for a rune.
-// This is a simplified implementation focusing on common cases.
+// Uses official Unicode LineBreak.txt property data.
 // Reference: http://www.unicode.org/reports/tr14/#Table1
 func getBreakClass(r rune) BreakClass {
+	// Use official Unicode data
+	if class, ok := getBreakClassFromData(r); ok {
+		return class
+	}
+
+	// Fallback for unassigned characters (should rarely be hit with complete data)
 	// Mandatory breaks
 	switch r {
 	case '\n':
@@ -563,25 +573,32 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 				bytePos := len(string(runes[:i]))
 				breakPoints = append(breakPoints, bytePos)
 			} else if prevClass == ClassHY || prevClass == ClassCB || prevClass == ClassBA || prevClass == ClassB2 {
-				// Explicit break opportunities (hyphens, soft hyphens, etc.)
-				// Respect the hyphens property
+				// Explicit break opportunities (hyphens, soft hyphens, BA, B2)
+				// For BA/B2: Most characters break, soft hyphen respects hyphens setting
+				// For HY/CB: Respect the hyphens property
 				isSoftHyphen := i > 0 && runes[i-1] == '\u00AD'
 
-				if hyphens == HyphensNone {
-					// Don't break at any hyphens (hard or soft)
-					// Skip adding this break point
-				} else if hyphens == HyphensManual && isSoftHyphen {
-					// Only break at soft hyphens (U+00AD) in manual mode
-					bytePos := len(string(runes[:i]))
-					breakPoints = append(breakPoints, bytePos)
-				} else if hyphens == HyphensManual && !isSoftHyphen {
-					// Don't break at hard hyphens in manual mode
-					// Skip adding this break point
-				} else if hyphens == HyphensAuto {
-					// Break at all hyphens (hard and soft) in auto mode
-					// TODO: Add dictionary-based automatic hyphenation
-					bytePos := len(string(runes[:i]))
-					breakPoints = append(breakPoints, bytePos)
+				if prevClass == ClassBA || prevClass == ClassB2 {
+					// BA/B2 characters: break unless it's soft hyphen with HyphensNone
+					if !(isSoftHyphen && hyphens == HyphensNone) {
+						bytePos := len(string(runes[:i]))
+						breakPoints = append(breakPoints, bytePos)
+					}
+				} else {
+					// HY/CB: Respect hyphens setting
+					if hyphens == HyphensNone {
+						// Don't break at any hyphens
+					} else if hyphens == HyphensManual && isSoftHyphen {
+						// Only break at soft hyphens in manual mode
+						bytePos := len(string(runes[:i]))
+						breakPoints = append(breakPoints, bytePos)
+					} else if hyphens == HyphensManual && !isSoftHyphen {
+						// Don't break at hard hyphens in manual mode
+					} else if hyphens == HyphensAuto {
+						// Break at all hyphens in auto mode
+						bytePos := len(string(runes[:i]))
+						breakPoints = append(breakPoints, bytePos)
+					}
 				}
 			} else if prevClass == ClassSP {
 				// LB18: Break after spaces (word boundaries)

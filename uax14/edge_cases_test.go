@@ -150,7 +150,7 @@ func TestEdgeCases_Hyphens(t *testing.T) {
 			name:     "en dash",
 			text:     "hello–world", // U+2013 EN DASH
 			hyphens:  HyphensAuto,
-			expected: []int{0, 8, 13}, // Should break like hyphen
+			expected: []int{0, 13}, // Unicode classifies EN DASH as HH (not HY), no break in middle
 		},
 	}
 

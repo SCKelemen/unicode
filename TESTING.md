@@ -152,7 +152,11 @@ go test -bench=.
 
 We test against the official [LineBreakTest.txt](https://www.unicode.org/Public/UCD/latest/ucd/auxiliary/LineBreakTest.txt) provided by the Unicode Consortium.
 
-**Results**: 72.9% pass rate (14,099 / 19,338 tests)
+**Results**: 72.3% pass rate (13,973 / 19,338 tests)
+
+### Character Classification
+
+The implementation now uses **official Unicode LineBreak-17.0.0.txt property data** for comprehensive and authoritative character classification. The generated data file (`linebreak_data.go`) contains 3,685 lines covering all Unicode character line break properties with binary search lookup.
 
 ### Why Not 100%?
 
