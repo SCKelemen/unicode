@@ -40,7 +40,7 @@ func TestFindLineBreakOpportunities(t *testing.T) {
 			name:     "with newline",
 			text:     "hello\nworld",
 			hyphens:  HyphensManual,
-			expected: []int{0, 11}, // Newline is processed but break position is at end
+			expected: []int{0, 6, 11}, // Break at newline position and end
 		},
 		{
 			name:     "with soft hyphen - manual mode",

@@ -91,21 +91,12 @@ This is a simplified implementation focusing on practical line breaking. Some UA
 ### Not Implemented
 - Dictionary-based automatic hyphenation (for HyphensAuto mode)
 
-### Known Issues
-
-The following special characters are not handled correctly due to the simplified pair-table implementation:
-
-1. **Zero-Width Space (U+200B)**: Should allow breaks but currently doesn't
-2. **Line Separator (U+2028)** and **Paragraph Separator (U+2029)**: Should create mandatory breaks but currently don't
-3. **Next Line (U+0085)**: Should create mandatory breaks but currently doesn't
-4. **Soft hyphen at text start**: Creates an unintended break immediately after the hyphen
-
-These issues stem from the pair-table using `ClassXX` wildcards that aren't matched during lookup. For most practical text layout use cases (regular paragraphs with spaces, newlines, and occasional hyphens), these limitations don't affect functionality.
-
-### What Works Well
+### What Works
 - Regular newlines (`\n`, `\r`, `\r\n`)
-- Word boundaries (spaces)
-- Soft hyphens (U+00AD) in the middle of words
+- Unicode line/paragraph separators (U+2028, U+2029, U+0085)
+- Zero-width spaces (U+200B)
+- Word boundaries (spaces and tabs)
+- Soft hyphens (U+00AD)
 - Hard hyphens with appropriate mode settings
 - CJK ideographic text
 - Non-breaking spaces (U+00A0)

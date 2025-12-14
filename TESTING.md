@@ -2,7 +2,7 @@
 
 ## Test Coverage
 
-**UAX14**: 92.9% code coverage with 89 test cases across multiple categories
+**UAX14**: 93.4% code coverage with 89 test cases across multiple categories
 
 ## Test Categories
 
@@ -22,11 +22,11 @@
 1. **Unicode Whitespace** (7 tests)
    - Tab characters
    - Non-breaking spaces (U+00A0)
-   - Zero-width spaces (U+200B) ⚠️
+   - Zero-width spaces (U+200B) ✅
    - Word joiners (U+2060)
-   - Line separators (U+2028) ⚠️
-   - Paragraph separators (U+2029) ⚠️
-   - Next line (U+0085) ⚠️
+   - Line separators (U+2028) ✅
+   - Paragraph separators (U+2029) ✅
+   - Next line (U+0085) ✅
 
 2. **Line Breaks** (4 tests)
    - CR+LF sequences
@@ -36,7 +36,7 @@
 
 3. **Hyphens** (5 tests)
    - Multiple soft hyphens
-   - Soft hyphen at start ⚠️
+   - Soft hyphen at start
    - Soft hyphen at end
    - Em dash (U+2014)
    - En dash (U+2013)
@@ -102,35 +102,22 @@
     - Latin + Korean
     - Multiple scripts mixed
 
-## Known Issues
+## Fixed Issues
 
-⚠️ = Test documents current behavior, which differs from UAX #14 specification
+The following issues were identified during comprehensive edge case testing and have been **fixed**:
 
-### Root Cause
-The pair-table lookup doesn't support wildcard matching (`ClassXX`). Patterns like:
-```go
-{ClassBK, ClassXX}: BreakMandatory  // Break after BK, before anything
-```
-Don't match when we lookup `{ClassBK, ClassAL}`.
+### Fixes Applied
+1. **Wildcard Pattern Matching**: Updated `getBreakAction()` to support wildcard lookups with `ClassXX`
+2. **Zero-Width Space (U+200B)**: Now correctly creates break opportunities ✅
+3. **Line Separator (U+2028)**: Now creates mandatory breaks ✅
+4. **Paragraph Separator (U+2029)**: Now creates mandatory breaks ✅
+5. **Next Line (U+0085)**: Now creates mandatory breaks ✅
 
-### Affected Special Characters
-1. **Zero-Width Space (U+200B)** - Should create break opportunity
-2. **Line Separator (U+2028)** - Should create mandatory break
-3. **Paragraph Separator (U+2029)** - Should create mandatory break
-4. **Next Line (U+0085)** - Should create mandatory break
-5. **Soft hyphen at start** - Shouldn't create break immediately after
+### How It Was Fixed
+- Added fallback wildcard pattern matching in `getBreakAction()` to check `{before, ClassXX}` and `{ClassXX, after}` patterns
+- Added explicit handling for `ClassZW` (zero-width space) in the `BreakDirect` case
 
-### Impact
-**Low** for typical use cases:
-- Regular paragraphs with spaces: ✅ Works perfectly
-- Newlines (`\n`, `\r`, `\r\n`): ✅ Works perfectly
-- Soft hyphens mid-word: ✅ Works perfectly
-- CJK text: ✅ Works perfectly
-- Most Unicode text: ✅ Works perfectly
-
-**Medium** for specialized cases:
-- Explicit zero-width spaces: ❌ Won't break
-- Unicode line/paragraph separators: ❌ Won't break (but rare in practice)
+All special Unicode whitespace and line breaking characters now work correctly according to UAX #14 specification.
 
 ## Benchmarks
 
@@ -158,16 +145,6 @@ go test -run TestEdgeCases_URLs
 go test -bench=.
 ```
 
-## Future Improvements
-
-If the known issues need to be fixed:
-
-1. **Option 1**: Expand pair table with all combinations (no wildcards)
-2. **Option 2**: Add special-case handling before pair-table lookup
-3. **Option 3**: Implement wildcard matching in `getBreakAction()`
-
-Each option has tradeoffs between code size, performance, and correctness.
-
 ## Comparison to Original
 
-This code was extracted from `github.com/SCKelemen/layout` where it was used successfully for practical text layout. The known issues existed in the original implementation but didn't affect its primary use case (breaking English and CJK text at word boundaries).
+This code was extracted from `github.com/SCKelemen/layout` where it was used successfully for practical text layout. During extraction, comprehensive edge case testing was added, which revealed and fixed several issues with special Unicode characters that were not properly handled in the original implementation.

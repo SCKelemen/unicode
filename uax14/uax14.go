@@ -297,8 +297,16 @@ var pairTable = map[[2]BreakClass]BreakAction{
 
 // getBreakAction returns the break action between two character classes.
 func getBreakAction(before, after BreakClass) BreakAction {
-	// Check pair table
+	// Try exact match first
 	if action, ok := pairTable[[2]BreakClass{before, after}]; ok {
+		return action
+	}
+
+	// Try wildcard patterns: {before, XX} and {XX, after}
+	if action, ok := pairTable[[2]BreakClass{before, ClassXX}]; ok {
+		return action
+	}
+	if action, ok := pairTable[[2]BreakClass{ClassXX, after}]; ok {
 		return action
 	}
 
@@ -368,7 +376,11 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 		case BreakDirect:
 			// Direct break - add for explicit break characters and ideographic text
 			// Don't break between regular alphabetic characters (to keep words together)
-			if prevClass == ClassHY || prevClass == ClassCB || prevClass == ClassBA || prevClass == ClassB2 {
+			if prevClass == ClassZW {
+				// Zero-width space always allows break
+				bytePos := len(string(runes[:i]))
+				breakPoints = append(breakPoints, bytePos)
+			} else if prevClass == ClassHY || prevClass == ClassCB || prevClass == ClassBA || prevClass == ClassB2 {
 				// Explicit break opportunities (hyphens, soft hyphens, etc.)
 				// Respect the hyphens property
 				isSoftHyphen := i > 0 && runes[i-1] == '\u00AD'

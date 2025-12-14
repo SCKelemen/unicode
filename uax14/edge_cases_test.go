@@ -30,7 +30,7 @@ func TestEdgeCases_UnicodeWhitespace(t *testing.T) {
 			name:     "zero-width space",
 			text:     "hello\u200Bworld", // U+200B ZWSP
 			hyphens:  HyphensManual,
-			expected: []int{0, 13}, // KNOWN ISSUE: Should break at ZWSP but doesn't
+			expected: []int{0, 8, 13}, // ZWSP is 3 bytes; creates break after it
 		},
 		{
 			name:     "word joiner",
@@ -42,19 +42,19 @@ func TestEdgeCases_UnicodeWhitespace(t *testing.T) {
 			name:     "line separator",
 			text:     "hello\u2028world", // U+2028 Line Separator
 			hyphens:  HyphensManual,
-			expected: []int{0, 13}, // KNOWN ISSUE: Should create mandatory break
+			expected: []int{0, 8, 13}, // Creates mandatory break after separator
 		},
 		{
 			name:     "paragraph separator",
 			text:     "hello\u2029world", // U+2029 Paragraph Separator
 			hyphens:  HyphensManual,
-			expected: []int{0, 13}, // KNOWN ISSUE: Should create mandatory break
+			expected: []int{0, 8, 13}, // Creates mandatory break after separator
 		},
 		{
 			name:     "next line",
 			text:     "hello\u0085world", // U+0085 NEL
 			hyphens:  HyphensManual,
-			expected: []int{0, 12}, // NEL is 2 bytes; KNOWN ISSUE: should break
+			expected: []int{0, 7, 12}, // NEL is 2 bytes; creates mandatory break
 		},
 	}
 
@@ -81,25 +81,25 @@ func TestEdgeCases_LineBreaks(t *testing.T) {
 			name:     "CR+LF sequence",
 			text:     "hello\r\nworld",
 			hyphens:  HyphensManual,
-			expected: []int{0, 12}, // CR+LF treated as single break
+			expected: []int{0, 7, 12}, // Break after CR+LF (at position 7) and end
 		},
 		{
 			name:     "multiple newlines",
 			text:     "hello\n\nworld",
 			hyphens:  HyphensManual,
-			expected: []int{0, 12}, // Each newline is processed
+			expected: []int{0, 6, 7, 12}, // Break at each newline
 		},
 		{
 			name:     "CR only",
 			text:     "hello\rworld",
 			hyphens:  HyphensManual,
-			expected: []int{0, 11}, // CR is mandatory break
+			expected: []int{0, 6, 11}, // Break at CR
 		},
 		{
 			name:     "mixed line endings",
 			text:     "a\nb\rc\r\nd",
 			hyphens:  HyphensManual,
-			expected: []int{0, 8}, // All line endings processed
+			expected: []int{0, 2, 4, 7, 8}, // Break at each line ending
 		},
 	}
 
