@@ -191,6 +191,15 @@ func getBreakClass(r rune) BreakClass {
 		return ClassIS
 	}
 
+	// CJK brackets and punctuation (U+3000-303F)
+	// Even codepoints are opening, odd are closing
+	if (r >= 0x3008 && r <= 0x3011) || (r >= 0x3014 && r <= 0x301B) {
+		if r%2 == 0 {
+			return ClassOP
+		}
+		return ClassCL
+	}
+
 	// Numeric
 	if unicode.Is(unicode.N, r) {
 		return ClassNU
@@ -369,9 +378,19 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			breakPoints = append(breakPoints, bytePos)
 		case BreakIndirect:
 			// Indirect break (usually spaces) - add for word boundaries
+			// But respect LB6 and LB13
 			if prevClass == ClassSP {
-				bytePos := len(string(runes[:i]))
-				breakPoints = append(breakPoints, bytePos)
+				// LB6: Do not break before hard line breaks (BK, CR, LF, NL)
+				// LB13: Do not break before CL, CP, EX, IS (closing punct)
+				// LB16: Do not break before NS (nonstarters)
+				if currClass == ClassBK || currClass == ClassCR || currClass == ClassLF ||
+					currClass == ClassNL || currClass == ClassCL || currClass == ClassCP ||
+					currClass == ClassEX || currClass == ClassIS || currClass == ClassNS {
+					// Don't break
+				} else {
+					bytePos := len(string(runes[:i]))
+					breakPoints = append(breakPoints, bytePos)
+				}
 			}
 		case BreakDirect:
 			// Direct break - add for explicit break characters and ideographic text
@@ -402,9 +421,19 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 					breakPoints = append(breakPoints, bytePos)
 				}
 			} else if prevClass == ClassSP {
-				// Break after spaces (word boundaries)
-				bytePos := len(string(runes[:i]))
-				breakPoints = append(breakPoints, bytePos)
+				// LB18: Break after spaces (word boundaries)
+				// But respect LB6 and LB13
+				// LB6: Do not break before hard line breaks
+				// LB13: Do not break before CL, CP, EX, IS
+				// LB16: Do not break before NS (nonstarters)
+				if currClass == ClassBK || currClass == ClassCR || currClass == ClassLF ||
+					currClass == ClassNL || currClass == ClassCL || currClass == ClassCP ||
+					currClass == ClassEX || currClass == ClassIS || currClass == ClassNS {
+					// Don't break before these characters, even after space
+				} else {
+					bytePos := len(string(runes[:i]))
+					breakPoints = append(breakPoints, bytePos)
+				}
 			} else if prevClass == ClassID || currClass == ClassID {
 				// Allow breaks involving ideographic characters (CJK text)
 				// Per UAX #14, ideographic characters can break between each other
