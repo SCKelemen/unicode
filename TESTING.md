@@ -2,10 +2,10 @@
 
 ## Test Coverage
 
-**UAX14**: 93.5% code coverage with comprehensive test suite:
+**UAX14**: 93.0% code coverage with comprehensive test suite:
 - 89 manual test cases across multiple categories
 - 167 comprehensive Unicode tests (control characters, Asian scripts, Middle Eastern, emoji, etc.)
-- 19,338 official Unicode Consortium test vectors (70.5% pass rate)
+- 19,338 official Unicode Consortium test vectors (72.6% pass rate)
 
 ## Test Categories
 
@@ -152,25 +152,27 @@ go test -bench=.
 
 We test against the official [LineBreakTest.txt](https://www.unicode.org/Public/UCD/latest/ucd/auxiliary/LineBreakTest.txt) provided by the Unicode Consortium.
 
-**Results**: 70.5% pass rate (13,628 / 19,338 tests)
+**Results**: 72.6% pass rate (14,034 / 19,338 tests)
 
 ### Why Not 100%?
 
 This is expected for our simplified implementation:
 
-**What we implement well** (explains the 70% pass rate):
+**What we implement well** (explains the 73% pass rate):
 - Word boundaries (spaces, tabs)
-- Mandatory breaks (newlines, line separators)
+- Mandatory breaks (newlines, line separators, including \v and \f)
+- LB7: Do not break before spaces or zero width space
 - Zero-width spaces and joiners
 - CJK ideographic breaks
 - Ambiguous East Asian (AI) character breaks
 - Hangul syllables (H2/H3) and Jamo (JL/JV/JT)
 - Indic Aksara scripts (AK class for Balinese, Brahmi)
+- Exclamation/interrogation marks (including presentation forms and fullwidth)
 - Basic punctuation rules
 - Non-breaking spaces
 - Soft hyphens
 
-**What we intentionally simplify** (explains the 30% fail rate):
+**What we intentionally simplify** (explains the 27% fail rate):
 - Complex East Asian width rules (EA class)
 - Advanced Hangul rules (LB26/LB27 - treat all Hangul as H2 for simplicity)
 - Tailored break rules for specific scripts (SA, SG, AP, AS, VF, VI classes)
@@ -181,7 +183,7 @@ This is expected for our simplified implementation:
 - Emoji modifiers (EB, EM classes)
 - Conditional Japanese starter (CJ) rules
 
-For practical text layout in Western + CJK + Korean contexts, the 70% pass rate provides excellent real-world coverage. The failures are mostly in edge cases for less common scripts and complex typographic scenarios.
+For practical text layout in Western + CJK + Korean contexts, the 73% pass rate provides excellent real-world coverage. The failures are mostly in edge cases for less common scripts and complex typographic scenarios.
 
 ## Comparison to Original
 

@@ -137,6 +137,10 @@ func getBreakClass(r rune) BreakClass {
 		return ClassLF
 	case '\r':
 		return ClassCR
+	case '\u000B': // LINE TABULATION (Vertical Tab \v)
+		return ClassBK
+	case '\u000C': // FORM FEED (\f)
+		return ClassBK
 	case '\u0085': // NEL (Next Line)
 		return ClassNL
 	case '\u2028': // Line Separator
@@ -183,7 +187,10 @@ func getBreakClass(r rune) BreakClass {
 		return ClassCP
 	case '"', '\'', '«', '»', '„', '‚', '‹', '›':
 		return ClassQU
-	case '!', '?':
+	case '!', '?', '\uFE56', '\uFE57', '\uFF01', '\uFF1F':
+		// ! ? (ASCII)
+		// ﹖ ﹗ (Small question/exclamation marks)
+		// ！ ？ (Fullwidth)
 		return ClassEX
 	case '-', '–', '—':
 		return ClassHY
@@ -536,14 +543,20 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			} else if prevClass == ClassID || currClass == ClassID {
 				// Allow breaks involving ideographic characters (CJK text)
 				// Per UAX #14, ideographic characters can break between each other
-				bytePos := len(string(runes[:i]))
-				breakPoints = append(breakPoints, bytePos)
+				// LB7: Do not break before spaces or zero width space
+				if currClass != ClassSP && currClass != ClassZW {
+					bytePos := len(string(runes[:i]))
+					breakPoints = append(breakPoints, bytePos)
+				}
 			} else if prevClass == ClassAI || currClass == ClassAI {
 				// Allow breaks involving ambiguous East Asian characters
 				// Per UAX #14 LB28, when getBreakAction returns BreakDirect for AI,
 				// we should allow the break (already checked pairTable prohibitions)
-				bytePos := len(string(runes[:i]))
-				breakPoints = append(breakPoints, bytePos)
+				// LB7: Do not break before spaces or zero width space
+				if currClass != ClassSP && currClass != ClassZW {
+					bytePos := len(string(runes[:i]))
+					breakPoints = append(breakPoints, bytePos)
+				}
 			}
 		}
 
