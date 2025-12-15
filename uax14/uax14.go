@@ -701,9 +701,13 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 					// LB19: Do not break before QU (× SP* QU)
 				} else if currClass == ClassBK || currClass == ClassCR || currClass == ClassLF ||
 					currClass == ClassNL || currClass == ClassCL || currClass == ClassCP ||
-					currClass == ClassEX || currClass == ClassIS {
+					currClass == ClassEX || currClass == ClassIS || currClass == ClassSY ||
+					currClass == ClassWJ || currClass == ClassZW || currClass == ClassGL {
 					// LB6: Do not break before hard line breaks (BK, CR, LF, NL)
-					// LB13: Do not break before CL, CP, EX, IS (closing punct)
+					// LB7: Do not break before ZW (× ZW)
+					// LB11: Do not break before WJ (× WJ)
+					// LB12: Do not break after GL (× GL)
+					// LB13: Do not break before CL, CP, EX, IS, SY (closing punct)
 					// Note: NS removed - LB18 (break after space) overrides LB16 (× NS)
 				} else {
 					bytePos := len(string(runes[:i]))
@@ -747,7 +751,7 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 				}
 			} else if prevClass == ClassSP {
 				// LB18: Break after spaces (word boundaries)
-				// But respect LB6, LB13, LB14, LB19
+				// But respect LB6, LB7, LB11, LB12, LB13, LB14, LB19
 				// LB14: Do not break after OP, even if spaces intervene (OP SP* ×)
 				// LB19: Do not break before or after QU (× SP* QU and QU SP* ×)
 				if lastNonSpaceClass == ClassOP || lastNonSpaceClass == ClassQU {
@@ -756,9 +760,13 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 					// LB19: Do not break before QU (× SP* QU)
 				} else if currClass == ClassBK || currClass == ClassCR || currClass == ClassLF ||
 					currClass == ClassNL || currClass == ClassCL || currClass == ClassCP ||
-					currClass == ClassEX || currClass == ClassIS {
+					currClass == ClassEX || currClass == ClassIS || currClass == ClassSY ||
+					currClass == ClassWJ || currClass == ClassZW || currClass == ClassGL {
 					// LB6: Do not break before hard line breaks
-					// LB13: Do not break before CL, CP, EX, IS
+					// LB7: Do not break before ZW (× ZW)
+					// LB11: Do not break before WJ (× WJ)
+					// LB12: Do not break after GL (× GL)
+					// LB13: Do not break before CL, CP, EX, IS, SY
 					// Note: NS removed - LB18 (break after space) overrides LB16 (× NS)
 				} else {
 					bytePos := len(string(runes[:i]))
