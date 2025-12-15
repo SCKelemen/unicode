@@ -4490,6 +4490,71 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			}
 		}
 
+
+		// Pattern 7: Guillemet separators (detect »word« pattern used as emphasis, not quotation)
+		// Allow breaks: AL SP ÷ » and « SP ÷ AL when guillemets surround a single short word
+		if prevClass == ClassSP && isClassOrVariant(currClass, ClassQU_Pf) && i > 0 {
+			currRune := runes[i]
+			// Only for closing guillemet » (U+00BB)
+			if currRune == '\u00BB' {
+				// Look ahead to find matching opening guillemet «
+				foundOpening := false
+				wordLength := 0
+				hasPunctuation := false
+				for checkIdx := i + 1; checkIdx < len(runes) && checkIdx < i+20; checkIdx++ {
+					checkRune := runes[checkIdx]
+					if checkRune == '\u00AB' { // LEFT-POINTING DOUBLE ANGLE QUOTATION MARK
+						foundOpening = true
+						break
+					}
+					if checkRune == ' ' || checkRune == '\t' {
+						break // Stop if we hit a space
+					}
+					// Check for punctuation (would indicate traditional quotation, not separator)
+					if checkRune == '.' || checkRune == ',' || checkRune == '!' || checkRune == '?' || checkRune == ';' || checkRune == ':' {
+						hasPunctuation = true
+					}
+					wordLength++
+				}
+				// If short word (1-10 chars) with no punctuation between guillemets, it's a separator
+				if foundOpening && wordLength >= 1 && wordLength <= 10 && !hasPunctuation {
+					// Allow break before closing guillemet in separator context
+					bytePos := len(string(runes[:i]))
+					breakPoints = append(breakPoints, bytePos)
+					prevClass = currClass
+					if currClass != ClassSP {
+						lastNonSpaceClass = currClass
+					}
+					continue
+				}
+			}
+		}
+
+		// Pattern 8: German quotes (detect „word" and ‚word' patterns where "normally opening" quotes are used as closing)
+		// Allow breaks: „...201C SP ÷ or ‚...2018 SP ÷ when 201C/2018 act as German closing quotes
+		if prevClass == ClassSP && i >= 2 {
+			// Check if character before space (i-2) was U+201C or U+2018 (used as German closing)
+			beforeSpace := runes[i-2]
+			if beforeSpace == '\u201C' || beforeSpace == '\u2018' {
+				// Look further back to find German opening quote (U+201E or U+201A)
+				for checkIdx := i - 3; checkIdx >= 0 && checkIdx > i-30; checkIdx-- {
+					checkRune := runes[checkIdx]
+					if checkRune == '\u201E' || checkRune == '\u201A' {
+						// Found German opening quote, so 201C/2018 is acting as closing
+						// Allow break after German closing quote + space
+						bytePos := len(string(runes[:i]))
+						breakPoints = append(breakPoints, bytePos)
+						prevClass = currClass
+						if currClass != ClassSP {
+							lastNonSpaceClass = currClass
+						}
+						continue
+					}
+				}
+			}
+		}
+
+
 		// Pattern 4: CJK curly quotes ÷ ID (allow breaks after CJK closing quotes before ideographs)
 		// Only when the closing quote follows CJK punctuation/ideographs, not Latin letters
 		if isClassOrVariant(prevClass, ClassQU_Pf) && isClassOrVariant(currClass, ClassID) && i > 0 {
@@ -4619,7 +4684,24 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 						continue
 					}
 				}
-				// For CP/CL/EX, require opening quote with OP/CL content (stricter check)
+				// For B2 (Break Before and After), allow break after B2 SP before QU_Pf
+			// This handles patterns like "?» — »Quote" where em dash allows break
+			// But only if there's actual content after the guillemet
+			if lastNonSpaceClass == ClassB2 && i+1 < len(runes) {
+				// Check if there's content after this closing guillemet (not just end of string)
+				nextClass := getBreakClass(runes[i+1])
+				// Allow break only if next character is not end-of-text indicators
+				if !isClassOrVariant(nextClass, ClassSP) && nextClass != ClassBK && nextClass != ClassCR && nextClass != ClassLF && nextClass != ClassNL {
+					bytePos := len(string(runes[:i]))
+					breakPoints = append(breakPoints, bytePos)
+					prevClass = currClass
+					if currClass != ClassSP {
+						lastNonSpaceClass = currClass
+					}
+					continue
+				}
+			}
+			// For CP/CL/EX, require opening quote with OP/CL content (stricter check)
 				if isClassOrVariant(lastNonSpaceClass, ClassCP) ||
 				   isClassOrVariant(lastNonSpaceClass, ClassCL) ||
 				   isClassOrVariant(lastNonSpaceClass, ClassEX) {
@@ -4649,6 +4731,39 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 					}
 				}
 			}
+			// Check for guillemet separator: « SP ÷ AL when part of »word« pattern
+			if isClassOrVariant(lastNonSpaceClass, ClassQU_Pi) && isClassOrVariant(currClass, ClassAL) {
+				// Look back to find the opening guillemet
+				for checkIdx := i - 2; checkIdx >= 0 && checkIdx > i-15; checkIdx-- {
+					checkRune := runes[checkIdx]
+					if checkRune == '\u00AB' { // LEFT-POINTING DOUBLE ANGLE QUOTATION MARK (opening guillemet)
+						// Look back further to see if there's a matching closing guillemet » before it
+						foundClosingBefore := false
+						for prevIdx := checkIdx - 1; prevIdx >= 0 && prevIdx > checkIdx-15; prevIdx-- {
+							prevRune := runes[prevIdx]
+							if prevRune == '\u00BB' { // RIGHT-POINTING (closing guillemet)
+								foundClosingBefore = true
+								break
+							}
+							if prevRune == ' ' || prevRune == '\t' {
+								break
+							}
+						}
+						// If we found »word« pattern, allow break after « SP
+						if foundClosingBefore {
+							bytePos := len(string(runes[:i]))
+							breakPoints = append(breakPoints, bytePos)
+							prevClass = currClass
+							if currClass != ClassSP {
+								lastNonSpaceClass = currClass
+							}
+							continue
+						}
+						break
+					}
+				}
+			}
+
 			// Pattern 2: SP ÷ OP after QU_Pi with closing quote ahead
 			if isClassOrVariant(currClass, ClassOP) && isClassOrVariant(lastNonSpaceClass, ClassQU_Pi) {
 				// Look ahead to see if there's a closing quote with content between
@@ -5249,6 +5364,19 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 
 	// End of text is always a break point
 	breakPoints = append(breakPoints, len(text))
+
+	// Deduplicate break points (remove duplicates while preserving order)
+	if len(breakPoints) > 1 {
+		seen := make(map[int]bool)
+		deduped := make([]int, 0, len(breakPoints))
+		for _, bp := range breakPoints {
+			if !seen[bp] {
+				seen[bp] = true
+				deduped = append(deduped, bp)
+			}
+		}
+		breakPoints = deduped
+	}
 
 	return breakPoints
 }
