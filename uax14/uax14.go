@@ -1061,6 +1061,70 @@ var pairTable = map[[2]BreakClass]BreakAction{
 	{ClassBA_EA, ClassXX}: BreakDirect,
 	{ClassBA_EA, ClassZW}: BreakProhibited,
 	{ClassBA_EA, ClassZWJ}: BreakIndirect,
+	{ClassBA, ClassAI_EA}: BreakDirect,
+	{ClassBA, ClassAI}: BreakDirect,
+	{ClassBA, ClassAK}: BreakDirect,
+	{ClassBA, ClassAL_EA}: BreakDirect,
+	{ClassBA, ClassAL}: BreakDirect,
+	{ClassBA, ClassAP}: BreakDirect,
+	{ClassBA, ClassAS}: BreakDirect,
+	{ClassBA, ClassB2}: BreakDirect,
+	{ClassBA, ClassBA}: BreakIndirect,
+	{ClassBA, ClassBA_EA}: BreakIndirect,
+	{ClassBA, ClassBB}: BreakDirect,
+	{ClassBA, ClassBK}: BreakProhibited,
+	{ClassBA, ClassCB}: BreakDirect,
+	{ClassBA, ClassCJ}: BreakIndirect,
+	{ClassBA, ClassCL_EA}: BreakProhibited,
+	{ClassBA, ClassCL}: BreakProhibited,
+	{ClassBA, ClassCM_EA}: BreakIndirect,
+	{ClassBA, ClassCM}: BreakIndirect,
+	{ClassBA, ClassCP}: BreakProhibited,
+	{ClassBA, ClassCR}: BreakProhibited,
+	{ClassBA, ClassEB_EA}: BreakDirect,
+	{ClassBA, ClassEB}: BreakDirect,
+	{ClassBA, ClassEM}: BreakDirect,
+	{ClassBA, ClassEX_EA}: BreakProhibited,
+	{ClassBA, ClassEX}: BreakProhibited,
+	{ClassBA, ClassGL_EA}: BreakDirect,
+	{ClassBA, ClassGL}: BreakDirect,
+	{ClassBA, ClassH2}: BreakDirect,
+	{ClassBA, ClassH3}: BreakDirect,
+	{ClassBA, ClassHH}: BreakIndirect,
+	{ClassBA, ClassHL}: BreakDirect,
+	{ClassBA, ClassHY}: BreakIndirect,
+	{ClassBA, ClassID_EA}: BreakDirect,
+	{ClassBA, ClassID}: BreakDirect,
+	{ClassBA, ClassIN_EA}: BreakIndirect,
+	{ClassBA, ClassIN}: BreakIndirect,
+	{ClassBA, ClassIS}: BreakProhibited,
+	{ClassBA, ClassJL}: BreakDirect,
+	{ClassBA, ClassJT}: BreakDirect,
+	{ClassBA, ClassJV}: BreakDirect,
+	{ClassBA, ClassLF}: BreakProhibited,
+	{ClassBA, ClassNL}: BreakProhibited,
+	{ClassBA, ClassNS_EA}: BreakIndirect,
+	{ClassBA, ClassNS}: BreakIndirect,
+	{ClassBA, ClassNU}: BreakDirect,
+	{ClassBA, ClassOP_EA}: BreakDirect,
+	{ClassBA, ClassOP}: BreakDirect,
+	{ClassBA, ClassPO_EA}: BreakDirect,
+	{ClassBA, ClassPO}: BreakDirect,
+	{ClassBA, ClassPR_EA}: BreakDirect,
+	{ClassBA, ClassPR}: BreakDirect,
+	{ClassBA, ClassQU_Pf}: BreakProhibited,
+	{ClassBA, ClassQU_Pi}: BreakIndirect,
+	{ClassBA, ClassQU}: BreakIndirect,
+	{ClassBA, ClassRI}: BreakDirect,
+	{ClassBA, ClassSA}: BreakDirect,
+	{ClassBA, ClassSP}: BreakProhibited,
+	{ClassBA, ClassSY}: BreakProhibited,
+	{ClassBA, ClassVF}: BreakDirect,
+	{ClassBA, ClassVI}: BreakDirect,
+	{ClassBA, ClassWJ}: BreakProhibited,
+	{ClassBA, ClassXX}: BreakDirect,
+	{ClassBA, ClassZW}: BreakProhibited,
+	{ClassBA, ClassZWJ}: BreakIndirect,
 	{ClassBB, ClassAI}: BreakIndirect,
 	{ClassBB, ClassAI_EA}: BreakIndirect,
 	{ClassBB, ClassAK}: BreakIndirect,
@@ -4237,9 +4301,15 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 		if prevClass == ClassBK || prevClass == ClassLF || prevClass == ClassNL {
 			bytePos := len(string(runes[:i]))
 			breakPoints = append(breakPoints, bytePos)
-			prevClass = currClass
-			if currClass != ClassSP {
-				lastNonSpaceClass = currClass
+			// LB10: Treat CM or ZWJ following a mandatory break as AL
+			if isClassOrVariant(currClass, ClassCM) || currClass == ClassZWJ {
+				prevClass = ClassAL
+				lastNonSpaceClass = ClassAL
+			} else {
+				prevClass = currClass
+				if currClass != ClassSP {
+					lastNonSpaceClass = currClass
+				}
 			}
 			continue
 		}
@@ -4257,9 +4327,15 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 				// CR followed by non-LF: mandatory break
 				bytePos := len(string(runes[:i]))
 				breakPoints = append(breakPoints, bytePos)
-				prevClass = currClass
-				if currClass != ClassSP {
-					lastNonSpaceClass = currClass
+				// LB10: Treat CM or ZWJ following a mandatory break as AL
+				if isClassOrVariant(currClass, ClassCM) || currClass == ClassZWJ {
+					prevClass = ClassAL
+					lastNonSpaceClass = ClassAL
+				} else {
+					prevClass = currClass
+					if currClass != ClassSP {
+						lastNonSpaceClass = currClass
+					}
 				}
 				continue
 			}
