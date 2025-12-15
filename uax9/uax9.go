@@ -731,6 +731,41 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 
 // detectEmptyIsolates marks empty isolates (isolate initiator immediately followed by PDI)
 // Empty isolate formatting characters should be treated as neutrals for proper level resolution
+// determineLevelRuns finds all maximal sequences of characters at the same embedding level.
+// Removed characters (level < 0) are skipped.
+// Returns a slice of level runs, where each run is a slice of character indexes.
+func determineLevelRuns(levels []int) [][]int {
+	n := len(levels)
+	var runs [][]int
+	var currentRun []int
+
+	for i := 0; i < n; i++ {
+		if levels[i] < 0 {
+			// Skip removed characters
+			continue
+		}
+
+		if len(currentRun) == 0 {
+			// Start a new run
+			currentRun = []int{i}
+		} else if levels[i] == levels[currentRun[0]] {
+			// Continue current run
+			currentRun = append(currentRun, i)
+		} else {
+			// Level changed, save current run and start new one
+			runs = append(runs, currentRun)
+			currentRun = []int{i}
+		}
+	}
+
+	// Don't forget the last run
+	if len(currentRun) > 0 {
+		runs = append(runs, currentRun)
+	}
+
+	return runs
+}
+
 // determineMatchingIsolates implements BD9: determine matching PDI for each isolate initiator.
 // Returns two slices:
 // - matchingPDI[i] = index of matching PDI for isolate initiator at i, or -1 if not an initiator
@@ -773,6 +808,69 @@ func determineMatchingIsolates(classes []BidiClass) ([]int, []int) {
 	}
 
 	return matchingPDI, matchingInitiator
+}
+
+// determineIsolatingRunSequences implements BD13: determine isolating run sequences.
+// An isolating run sequence is a maximal sequence of level runs where each run after the
+// first is the continuation of an isolate sequence started in a previous run.
+// Returns a slice of isolating run sequences, where each sequence is a slice of character indexes.
+func determineIsolatingRunSequences(classes []BidiClass, levels []int, matchingPDI, matchingInitiator []int) [][]int {
+	levelRuns := determineLevelRuns(levels)
+	n := len(classes)
+
+	// Map each character to its run number
+	runForChar := make([]int, n)
+	for runNum, run := range levelRuns {
+		for _, charIdx := range run {
+			runForChar[charIdx] = runNum
+		}
+	}
+
+	// Track which runs have been processed
+	processed := make([]bool, len(levelRuns))
+	var sequences [][]int
+
+	// For each level run, if it hasn't been processed and doesn't start with a PDI
+	// that has a matching initiator, build an isolating run sequence
+	for runNum, run := range levelRuns {
+		if processed[runNum] {
+			continue
+		}
+
+		firstChar := run[0]
+		// Skip runs that start with a PDI that has a matching initiator
+		if classes[firstChar] == ClassPDI && matchingInitiator[firstChar] != -1 {
+			continue
+		}
+
+		// Build an isolating run sequence starting from this run
+		var sequence []int
+		currentRun := runNum
+
+		for {
+			processed[currentRun] = true
+			run := levelRuns[currentRun]
+
+			// Add all characters from this run to the sequence
+			sequence = append(sequence, run...)
+
+			// Check if this run ends with an isolate initiator that has a matching PDI
+			lastChar := run[len(run)-1]
+			if (classes[lastChar] == ClassLRI || classes[lastChar] == ClassRLI || classes[lastChar] == ClassFSI) &&
+				matchingPDI[lastChar] != -1 {
+				// Continue with the run containing the matching PDI
+				pdiIdx := matchingPDI[lastChar]
+				currentRun = runForChar[pdiIdx]
+			} else {
+				// No continuation, end of sequence
+				break
+			}
+		}
+
+		sequences = append(sequences, sequence)
+	}
+
+	return sequences
 }
 
 func detectEmptyIsolates(classes []BidiClass, levels []int) []bool {
