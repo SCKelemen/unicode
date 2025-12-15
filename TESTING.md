@@ -152,7 +152,7 @@ go test -bench=.
 
 We test against the official [LineBreakTest.txt](https://www.unicode.org/Public/UCD/latest/ucd/auxiliary/LineBreakTest.txt) provided by the Unicode Consortium.
 
-**Results**: 72.3% pass rate (13,973 / 19,338 tests)
+**Results**: 75.6% pass rate (14,627 / 19,338 tests)
 
 ### Character Classification
 
@@ -162,23 +162,34 @@ The implementation now uses **official Unicode LineBreak-17.0.0.txt property dat
 
 This is expected for our simplified implementation:
 
-**What we implement well** (explains the 73% pass rate):
+**What we implement well** (explains the 76% pass rate):
 - Word boundaries (spaces, tabs)
 - Mandatory breaks (newlines, line separators, including \v and \f)
-- LB7: Do not break before spaces or zero width space
+- LB6: Do not break before hard line breaks
+- LB7: Do not break before spaces, zero width space, or ZW
+- LB11: Do not break before or after word joiner (WJ)
+- LB12: Do not break after non-breaking glue (GL)
+- LB13: Do not break before closing punctuation (CL, CP, EX, IS, SY)
 - LB14: Do not break after opening punctuation (OP SP* ×), including QU
+- LB16: Do not break before nonstarters (NS)
+- LB18: Break after spaces (with proper exclusions for special characters)
+- LB19: Do not break before or after quotation marks (partial implementation)
+- LB21: Do not break before BA or HY
 - LB23, LB24, LB25: Partial numeric expression breaks (PR/PO prefix/postfix for common currency symbols)
+- LB26, LB27: Korean syllable rules (H2/H3) and Jamo (JL/JV/JT)
+- LB28: Do not break between alphabetics (AL, HL)
+- LB29: Do not break between numeric punctuation and alphabetics
+- LB30: Do not break between letters/numbers and OP/CP
 - Zero-width spaces and joiners
 - CJK ideographic breaks
-- Ambiguous East Asian (AI) character breaks
+- Ambiguous East Asian (AI) character breaks with comprehensive rules
 - Hangul syllables (H2/H3) and Jamo (JL/JV/JT)
 - Indic Aksara scripts (AK class for Balinese, Brahmi)
 - Exclamation/interrogation marks (including presentation forms and fullwidth)
-- Basic punctuation rules
 - Non-breaking spaces
-- Soft hyphens
+- Soft hyphens with hyphenation mode support
 
-**What we intentionally simplify** (explains the 27% fail rate):
+**What remains to be implemented** (explains the 24% fail rate):
 - Character class detection (need official LineBreak.txt property data for complete accuracy)
 - Complex East Asian width rules (EA class)
 - Advanced Hangul rules (LB26/LB27 - treat all Hangul as H2 for simplicity)
@@ -190,7 +201,7 @@ This is expected for our simplified implementation:
 - Emoji modifiers (EB, EM classes) - requires comprehensive emoji property data
 - Conditional Japanese starter (CJ) rules
 
-For practical text layout in Western + CJK + Korean contexts, the 73% pass rate provides excellent real-world coverage. The failures are mostly in edge cases for less common scripts and complex typographic scenarios.
+For practical text layout in Western + CJK + Korean contexts, the 76% pass rate provides excellent real-world coverage. The failures are mostly in edge cases for less common scripts (SA, EB, EM, RI, Indic conjuncts) and complex typographic scenarios that require context-dependent state tracking.
 
 ## Comparison to Original
 
