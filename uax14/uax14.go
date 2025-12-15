@@ -4519,6 +4519,49 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			}
 		}
 
+		// Pattern 5: CJK ID ÷ QU_Pi (allow breaks before CJK opening quotes after ideographs)
+		if isClassOrVariant(prevClass, ClassID) && isClassOrVariant(currClass, ClassQU_Pi) && i > 0 {
+			// Only apply to CJK curly quotes (U+201C/U+2018), not European guillemets (U+00AB)
+			currRune := runes[i]
+			prevRune := runes[i-1]
+			if (currRune == '\u201C' || currRune == '\u2018') {
+				// Check if previous character is CJK ideograph (not Latin letter)
+				isCJK := (prevRune >= 0x4E00 && prevRune <= 0x9FFF) ||
+					(prevRune >= 0x3400 && prevRune <= 0x4DBF) ||
+					(prevRune >= 0x20000 && prevRune <= 0x2A6DF) ||
+					(prevRune >= 0x2A700 && prevRune <= 0x2B73F) ||
+					(prevRune >= 0x2B740 && prevRune <= 0x2B81F) ||
+					(prevRune >= 0x2B820 && prevRune <= 0x2CEAF) ||
+					(prevRune >= 0x2CEB0 && prevRune <= 0x2EBEF) ||
+					(prevRune >= 0x30000 && prevRune <= 0x3134F)
+
+				if isCJK && i+1 < len(runes) {
+					// Check if character AFTER the quote is also CJK (not Latin)
+					// This prevents breaking before quotes that contain English text
+					nextRune := runes[i+1]
+					nextIsCJK := (nextRune >= 0x4E00 && nextRune <= 0x9FFF) ||
+						(nextRune >= 0x3400 && nextRune <= 0x4DBF) ||
+						(nextRune >= 0x20000 && nextRune <= 0x2A6DF) ||
+						(nextRune >= 0x2A700 && nextRune <= 0x2B73F) ||
+						(nextRune >= 0x2B740 && nextRune <= 0x2B81F) ||
+						(nextRune >= 0x2B820 && nextRune <= 0x2CEAF) ||
+						(nextRune >= 0x2CEB0 && nextRune <= 0x2EBEF) ||
+						(nextRune >= 0x30000 && nextRune <= 0x3134F)
+
+					if nextIsCJK {
+						// CJK context: CJK before and after opening quote, allow break
+						bytePos := len(string(runes[:i]))
+						breakPoints = append(breakPoints, bytePos)
+						prevClass = currClass
+						if currClass != ClassSP {
+							lastNonSpaceClass = currClass
+						}
+						continue
+					}
+				}
+			}
+		}
+
 		if prevClass == ClassSP {
 			// Pattern 1: SP ÷ QU_Pf after CP/CL/EX/IS/SY
 			if isClassOrVariant(currClass, ClassQU_Pf) {
