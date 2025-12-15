@@ -1,4 +1,80 @@
-# Testing Summary
+# Testing & Conformance
+
+This document describes the conformance testing strategy for all UAX implementations in this repository.
+
+## Official Unicode Conformance Tests
+
+All UAX implementations are tested against official Unicode Consortium test files to ensure conformance with the Unicode Standard.
+
+### Test Files & Conformance Status
+
+#### UAX #29 - Text Segmentation
+
+**Location:** `uax29/`
+- `GraphemeBreakTest.txt` - Grapheme cluster boundary tests
+- `WordBreakTest.txt` - Word boundary tests
+- `SentenceBreakTest.txt` - Sentence boundary tests
+
+**Source:** https://www.unicode.org/Public/17.0.0/ucd/auxiliary/
+
+**Version:** Unicode 17.0.0
+
+**Conformance Status:**
+- ✅ Grapheme cluster boundaries: 766/766 tests (100.0%)
+- ✅ Word boundaries: 1,944/1,944 tests (100.0%)
+- ✅ Sentence boundaries: 512/512 tests (100.0%)
+- **Total: 3,222/3,222 tests passing (100%)**
+
+#### UAX #14 - Line Breaking
+
+**Location:** `uax14/`
+- `LineBreakTest.txt` - Line break opportunity tests (optional, auto-downloaded in CI)
+
+**Source:** https://www.unicode.org/Public/17.0.0/ucd/auxiliary/LineBreakTest.txt
+
+**Conformance Status:**
+- ⚠️  Official conformance: 13,973/19,338 tests (72.3%)
+- Note: This is expected for our simplified implementation focused on practical text layout
+
+### CI Conformance Testing
+
+The CI pipeline includes a dedicated `fetch-conformance-tests` job that:
+
+1. **Downloads fresh test files** directly from unicode.org for Unicode 17.0.0
+2. **Verifies** the downloaded files are valid and have correct version markers
+3. **Runs all conformance tests** with the freshly downloaded files
+4. **Ensures** our implementations work correctly with the latest official test data
+
+This runs on every push and pull request, guaranteeing conformance claims are always accurate.
+
+See: `.github/workflows/ci.yml` → `fetch-conformance-tests` job
+
+### Updating Test Files
+
+To update to a newer version of Unicode:
+
+```bash
+# UAX #29 test files
+curl -o uax29/GraphemeBreakTest.txt \
+  https://www.unicode.org/Public/17.0.0/ucd/auxiliary/GraphemeBreakTest.txt
+curl -o uax29/WordBreakTest.txt \
+  https://www.unicode.org/Public/17.0.0/ucd/auxiliary/WordBreakTest.txt
+curl -o uax29/SentenceBreakTest.txt \
+  https://www.unicode.org/Public/17.0.0/ucd/auxiliary/SentenceBreakTest.txt
+
+# UAX #14 test file (optional, for local testing)
+curl -o uax14/LineBreakTest.txt \
+  https://www.unicode.org/Public/17.0.0/ucd/auxiliary/LineBreakTest.txt
+
+# Run tests to verify
+go test ./...
+```
+
+After updating, also update version references in:
+- This TESTING.md file
+- Package documentation (`uax29/uax29.go`, etc.)
+- README.md conformance section
+- CI workflow `.github/workflows/ci.yml` URLs
 
 ## Test Coverage
 

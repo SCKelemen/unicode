@@ -1,0 +1,223 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: ['1.21', '1.23', '1.25']
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go }}
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ matrix.go }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-${{ matrix.go }}-
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Run tests
+      run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+
+    - name: Upload coverage to Codecov
+      if: matrix.go == '1.25'
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./coverage.txt
+        flags: unittests
+        name: codecov-umbrella
+
+  fetch-conformance-tests:
+    name: Fetch & Verify Official Conformance Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25'
+
+    - name: Download official Unicode 17.0.0 test files
+      run: |
+        echo "Downloading official Unicode 17.0.0 conformance test files..."
+
+        # UAX #29 - Text Segmentation test files
+        curl -fsSL -o uax29/GraphemeBreakTest.txt.new \
+          https://www.unicode.org/Public/17.0.0/ucd/auxiliary/GraphemeBreakTest.txt
+        curl -fsSL -o uax29/WordBreakTest.txt.new \
+          https://www.unicode.org/Public/17.0.0/ucd/auxiliary/WordBreakTest.txt
+        curl -fsSL -o uax29/SentenceBreakTest.txt.new \
+          https://www.unicode.org/Public/17.0.0/ucd/auxiliary/SentenceBreakTest.txt
+
+        # UAX #14 - Line Breaking test file
+        curl -fsSL -o uax14/LineBreakTest.txt \
+          https://www.unicode.org/Public/17.0.0/ucd/auxiliary/LineBreakTest.txt
+
+        echo "Download complete!"
+
+    - name: Verify downloaded test files
+      run: |
+        echo "Verifying test files..."
+
+        # Check UAX29 files exist and are valid
+        for file in GraphemeBreakTest WordBreakTest SentenceBreakTest; do
+          if [ ! -f "uax29/${file}.txt.new" ]; then
+            echo "ERROR: uax29/${file}.txt.new not found"
+            exit 1
+          fi
+          if [ ! -s "uax29/${file}.txt.new" ]; then
+            echo "ERROR: uax29/${file}.txt.new is empty"
+            exit 1
+          fi
+          # Check for Unicode 17.0.0 version marker
+          if ! head -1 "uax29/${file}.txt.new" | grep -q "17.0.0"; then
+            echo "ERROR: uax29/${file}.txt.new does not appear to be version 17.0.0"
+            head -1 "uax29/${file}.txt.new"
+            exit 1
+          fi
+          echo "✓ uax29/${file}.txt.new is valid (Unicode 17.0.0)"
+        done
+
+        # Check UAX14 file
+        if [ ! -f "uax14/LineBreakTest.txt" ]; then
+          echo "ERROR: uax14/LineBreakTest.txt not found"
+          exit 1
+        fi
+        if [ ! -s "uax14/LineBreakTest.txt" ]; then
+          echo "ERROR: uax14/LineBreakTest.txt is empty"
+          exit 1
+        fi
+        echo "✓ uax14/LineBreakTest.txt is valid"
+
+        echo "All test files verified successfully!"
+
+    - name: Run conformance tests with fresh test files
+      run: |
+        echo "Running UAX #29 conformance tests with freshly downloaded files..."
+
+        # Replace test files with newly downloaded ones
+        mv uax29/GraphemeBreakTest.txt.new uax29/GraphemeBreakTest.txt
+        mv uax29/WordBreakTest.txt.new uax29/WordBreakTest.txt
+        mv uax29/SentenceBreakTest.txt.new uax29/SentenceBreakTest.txt
+
+        # Run UAX29 conformance tests
+        cd uax29
+        go test -v -run TestGraphemeBreakOfficial
+        go test -v -run TestWordBreakOfficial
+        go test -v -run TestSentenceBreakOfficial
+        cd ..
+
+        # Run UAX14 conformance tests
+        echo "Running UAX #14 conformance tests..."
+        cd uax14
+        go test -v -run TestOfficialUnicodeVectors
+        cd ..
+
+        echo "All conformance tests passed with official Unicode 17.0.0 test files!"
+
+  conformance:
+    name: Unicode Conformance Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25'
+
+    - name: UAX #11 - East Asian Width Tests
+      run: |
+        cd uax11
+        go test -v
+
+    - name: UAX #14 - Line Breaking Tests
+      run: |
+        cd uax14
+        go test -v -run TestEdgeCases
+        go test -v -run TestUnicodeControlCharacters
+        go test -v -run TestAsianScripts
+
+    - name: UAX #29 - Text Segmentation Conformance Tests
+      run: |
+        cd uax29
+        go test -v -run TestGraphemeBreakOfficial
+        go test -v -run TestWordBreakOfficial
+        go test -v -run TestSentenceBreakOfficial
+
+    - name: UAX #50 - Vertical Text Layout Tests
+      run: |
+        cd uax50
+        go test -v
+
+    - name: UTS #51 - Unicode Emoji Conformance Tests
+      run: |
+        cd uts51
+        go test -v -run TestEmojiTestFileConformance
+        go test -v -run TestEmojiProperties
+        go test -v -run TestEmojiSequences
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25'
+
+    - name: Run golangci-lint
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
+        args: --timeout=5m
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25'
+
+    - name: Build all packages
+      run: |
+        go build ./uax11
+        go build ./uax14
+        go build ./uax29
+        go build ./uax50
+        go build ./uts51

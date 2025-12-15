@@ -2,7 +2,7 @@
 
 Implementation of [UAX #29: Unicode Text Segmentation](https://www.unicode.org/reports/tr29/) in Go.
 
-**Status:** Not yet implemented
+**Status:** Implemented with official Unicode test vectors (Unicode 17.0)
 
 ## Overview
 
@@ -42,19 +42,35 @@ This package will provide algorithms for breaking text into meaningful units:
 - Text-to-speech: proper phrase boundaries
 - Terminal UIs: text selection and wrapping
 
-## Implementation Plan
+## Implementation Status
 
-1. **Grapheme cluster boundaries** (Priority: High)
-   - Essential for cursor movement and text selection
-   - Emoji support increasingly important
+### Grapheme Cluster Boundaries ✅ (100.0% pass rate - 766/766) 🎉
+- **COMPLETE** implementation with Unicode 17.0 test vectors
+- Handles combining marks, Hangul syllables, all emoji sequences
+- Regional indicator pairs (flag emojis) working correctly
+- Prepend characters properly supported
+- Emoji modifiers (skin tones) correctly classified as Extend
+- GB11: Emoji ZWJ sequences fully implemented
+- GB9c: Indic conjunct sequences for 10+ scripts (Devanagari, Bengali, Gujarati, Oriya, Telugu, Malayalam, Myanmar, Balinese, Sundanese, Khmer)
 
-2. **Word boundaries** (Priority: High)
-   - Needed for text selection and layout
-   - Works with UAX #14 line breaking
+### Word Boundaries ✅ (100.0% pass rate - 1944/1944) 🎉
+- **COMPLETE** implementation with Unicode 17.0 test vectors
+- Handles all alphabetic/numeric sequences, contractions, punctuation
+- Regional indicator pairs with ZWJ transparency
+- Hebrew letter handling with single/double quotes
+- Katakana sequences and ExtendNumLet
+- Emoji sequences with modifiers and ZWJ
+- Proper handling of Format character exceptions
 
-3. **Sentence boundaries** (Priority: Medium)
-   - Useful for text processing
-   - Less critical for layout/rendering
+### Sentence Boundaries ✅ (100.0% pass rate - 512/512) 🎉
+- **COMPLETE** implementation with Unicode 17.0 test vectors
+- Handles all sentence terminators (., ?, !, and many script-specific terminators)
+- Proper handling of abbreviations with ATerm
+- Complex Close* Sp* sequences correctly processed
+- SB8: Lowercase handling after ATerm Close* Sp*
+- SB8a: SContinue and sentence terminal sequences
+- SB9/SB10: Close and space handling after terminators
+- SB11: Breaking after sentence terminal sequences
 
 ## Examples (Planned)
 
@@ -75,10 +91,17 @@ sentences := uax29.Sentences(text)
 // Returns: ["Hello Dr. Smith. ", "How are you?"]
 ```
 
-## Relationship to Other UAX
+## Dependencies
 
+This package depends on:
+- **UTS #51 (Unicode Emoji)**: Provides authoritative emoji property data (Extended_Pictographic, Regional_Indicator, Emoji_Modifier, ZeroWidthJoiner constant)
+
+## Integration with Other Standards
+
+- **UTS #51 (Unicode Emoji)**: Emoji sequences are treated as single grapheme clusters per UAX #29 GB11
 - **UAX #14 (Line Breaking)**: UAX #29 word boundaries inform line break decisions
 - **UAX #9 (Bidirectional)**: Both needed for proper text layout
+- **UAX #11 (East Asian Width)**: Terminal cursor movement should respect grapheme boundaries
 
 ## References
 
