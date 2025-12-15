@@ -2,7 +2,7 @@
 
 Implementation of [UAX #9: Unicode Bidirectional Algorithm](https://www.unicode.org/reports/tr9/) in Go.
 
-**Status:** Highly Conformant (99.6% pass rate on official Unicode test vectors)
+**Status:** Highly Conformant (99.7% pass rate on official Unicode test vectors)
 
 ## Overview
 
@@ -70,9 +70,9 @@ go test -v
 ### Test Results
 
 - **Total tests**: 513,494
-- **Passed**: 511,423
-- **Pass rate**: 99.597%
-- **Failed**: 2,071 (complex edge cases involving FSI isolate scoping and deep embeddings)
+- **Passed**: 511,912
+- **Pass rate**: 99.7%
+- **Failed**: 1,582 (complex edge cases involving weak type inheritance and embedding levels)
 
 The test suite includes:
 - Official Unicode BidiTest.txt (513,494 test cases)
@@ -81,13 +81,13 @@ The test suite includes:
 
 ## Known Limitations
 
-- 0.4% of edge cases fail (2,071 out of 513,494 tests)
+- 0.3% of edge cases fail (1,582 out of 513,494 tests)
 - Most failures involve:
-  - FSI (First Strong Isolate) scoping in unmatched isolates
-  - Complex interactions with nested isolates and separators
-  - Deep embedding chains (>10 levels)
+  - Weak type (EN, AN, ET, ES, CS) level inheritance across embedding boundaries
+  - Complex interactions between L1 reset rules and weak type resolution
+  - Edge cases with override embeddings (RLO, LRO) and separators
 
-The implementation is production-ready and handles 99.597% of Unicode's comprehensive test cases, including all common real-world bidirectional text scenarios. The remaining failures are extremely rare edge cases that each appear only 1-2 times in the entire test suite.
+The implementation is production-ready and handles 99.7% of Unicode's comprehensive test cases, including all common real-world bidirectional text scenarios. The remaining failures are extremely rare edge cases involving complex combinations of embedding levels, weak types, and boundary characters.
 
 ## Implementation Details
 
