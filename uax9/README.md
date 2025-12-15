@@ -2,7 +2,7 @@
 
 Implementation of [UAX #9: Unicode Bidirectional Algorithm](https://www.unicode.org/reports/tr9/) in Go.
 
-**Status:** Highly Conformant (99.997% pass rate on official Unicode test vectors)
+**Status:** Highly Conformant (99.987% pass rate on official Unicode test vectors with full isolating run sequences)
 
 ## Overview
 
@@ -70,9 +70,9 @@ go test -v
 ### Test Results
 
 - **Total tests**: 513,494
-- **Passed**: 513,477
-- **Pass rate**: 99.997%
-- **Failed**: 17 (complex edge cases involving isolate formatting characters and nested embeddings)
+- **Passed**: 513,425
+- **Pass rate**: 99.987%
+- **Failed**: 69 (empty isolate formatting characters with mixed directional contexts)
 
 The test suite includes:
 - Official Unicode BidiTest.txt (513,494 test cases)
@@ -81,24 +81,26 @@ The test suite includes:
 
 ## Known Limitations
 
-- 0.003% of edge cases fail (17 out of 513,494 tests)
-- Most failures involve:
-  - Isolate formatting characters (FSI, RLI, LRI, PDI) level adjustments in complex nested contexts
-  - Interaction between multiple isolate sequences and surrounding strong characters
-  - Complex nesting of explicit embeddings (LRE, LRO, RLO) with overrides
+- 0.013% of edge cases fail (69 out of 513,494 tests)
+- All failures involve empty isolate sequences with mixed directional contexts
+  - Pattern: `R LRI PDI EN` where the empty isolate (LRI...PDI) is surrounded by different directional levels
+  - The isolate formatting characters don't yet inherit the level of their surrounding resolved context in all cases
 
-The implementation is production-ready and handles 99.997% of Unicode's comprehensive test cases, including all common real-world bidirectional text scenarios. The remaining failures are extremely rare edge cases involving isolate formatting character level adjustments and deeply nested explicit embeddings in specific directional contexts.
+The implementation uses full isolating run sequences (BD13) as specified in UAX#9 and is production-ready, handling 99.987% of Unicode's comprehensive test cases including all common real-world bidirectional text scenarios. The remaining failures are edge cases involving level assignment for empty isolate formatting characters in specific directional mixing scenarios.
 
 ## Implementation Details
 
-The implementation follows the UAX #9 specification and includes:
+The implementation follows the UAX #9 specification with full isolating run sequences support:
 
 1. **Character Classification**: Maps Unicode characters to their bidirectional types (L, R, AL, EN, etc.)
 2. **Explicit Levels (X1-X8)**: Handles explicit embeddings (LRE, RLE, LRO, RLO, PDF) and isolates (LRI, RLI, FSI, PDI)
-3. **Weak Types (W1-W7)**: Resolves weak character types based on surrounding context
-4. **Neutral Types (N0-N2)**: Resolves neutral character types
-5. **Implicit Levels (I1-I2)**: Assigns final embedding levels
-6. **Reordering (L1-L4)**: Reorders text for visual display based on resolved levels
+3. **Isolate Matching (BD9)**: Tracks matching isolate initiators and PDIs
+4. **Level Runs**: Identifies maximal sequences at the same embedding level
+5. **Isolating Run Sequences (BD13)**: Builds sequences connected through isolates for proper context resolution
+6. **Weak Types (W1-W7)**: Resolves weak character types within isolating run sequences
+7. **Neutral Types (N0-N2)**: Resolves neutral character types with proper sos/eos from sequences
+8. **Implicit Levels (I1-I2)**: Assigns final embedding levels within sequences
+9. **Reordering (L1-L4)**: Reorders text for visual display based on resolved levels
 
 ## References
 
