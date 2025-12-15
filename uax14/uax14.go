@@ -4347,9 +4347,29 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 
 		action := getBreakAction(prevClass, currClass)
 
+		// LB8a: Do not break after ZWJ (Zero Width Joiner)
+		// Check if the actual previous rune is ZWJ (even if prevClass was converted to AL by LB10)
+		if i > 0 && runes[i-1] == '\u200D' { // U+200D is ZWJ
+			// Do not break after ZWJ - skip to updating prevClass
+			if !isClassOrVariant(currClass, ClassCM) && currClass != ClassZWJ && currClass != ClassSA {
+				prevClass = currClass
+				if currClass != ClassSP {
+					lastNonSpaceClass = currClass
+				}
+			} else if (isClassOrVariant(currClass, ClassCM) || currClass == ClassZWJ) &&
+				(prevClass == ClassSP || prevClass == ClassZW) {
+				prevClass = ClassAL
+				lastNonSpaceClass = ClassAL
+			}
+			continue
+		}
+
 		// LB8: Break before any character following ZW, even with intervening spaces
 		// This overrides pair table (e.g., SP × CL is BreakProhibited, but ZW SP CL should break after SP)
-		if lastNonSpaceClass == ClassZW && prevClass == ClassSP && currClass != ClassSP {
+		// Exception: Do not break before mandatory breaks (BK/CR/LF/NL) or ZW (LB6, LB7)
+		if lastNonSpaceClass == ClassZW && prevClass == ClassSP && currClass != ClassSP &&
+			currClass != ClassBK && currClass != ClassCR && currClass != ClassLF &&
+			currClass != ClassNL && currClass != ClassZW {
 			bytePos := len(string(runes[:i]))
 			breakPoints = append(breakPoints, bytePos)
 			// Skip the switch statement to avoid adding duplicate breaks
