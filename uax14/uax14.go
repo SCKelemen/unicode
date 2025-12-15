@@ -467,6 +467,8 @@ var pairTable = map[[2]BreakClass]BreakAction{
 	{ClassAL, ClassAI}: BreakProhibited,
 	{ClassAI, ClassHL}: BreakProhibited,
 	{ClassHL, ClassAI}: BreakProhibited,
+	{ClassAI, ClassHH}: BreakProhibited, // Hebrew letters
+	{ClassHH, ClassAI}: BreakProhibited,
 	// AI doesn't break from most punctuation/symbols (treats like AL)
 	{ClassAI, ClassEX}: BreakProhibited,
 	{ClassEX, ClassAI}: BreakProhibited,
@@ -476,6 +478,22 @@ var pairTable = map[[2]BreakClass]BreakAction{
 	{ClassNU, ClassAI}: BreakProhibited,
 	{ClassAI, ClassHY}: BreakProhibited,
 	{ClassHY, ClassAI}: BreakProhibited,
+	{ClassAI, ClassPO}: BreakProhibited, // Postfix
+	{ClassPO, ClassAI}: BreakProhibited,
+	{ClassAI, ClassPR}: BreakProhibited, // Prefix
+	{ClassPR, ClassAI}: BreakProhibited,
+	{ClassAI, ClassOP}: BreakProhibited, // Opening (LB30)
+	{ClassAI, ClassCL}: BreakProhibited, // Closing
+	{ClassAI, ClassCP}: BreakProhibited, // Close paren
+	{ClassAI, ClassQU}: BreakProhibited, // Quotation
+	{ClassAI, ClassNS}: BreakProhibited, // Nonstarter (LB16)
+	// Note: AI can break with BA, BB, B2 (they override the prohibition)
+	{ClassAI, ClassBB}: BreakDirect, // Break before
+	{ClassBB, ClassAI}: BreakDirect,
+	{ClassAI, ClassB2}: BreakDirect, // Break before/after
+	{ClassB2, ClassAI}: BreakDirect,
+	{ClassAI, ClassSY}: BreakProhibited, // Symbols
+	{ClassSY, ClassAI}: BreakProhibited,
 	// AI allows breaks with ideographic (like AL × ID)
 	{ClassAI, ClassID}: BreakDirect,
 	{ClassID, ClassAI}: BreakDirect,
@@ -498,9 +516,103 @@ var pairTable = map[[2]BreakClass]BreakAction{
 	{ClassAI, ClassJT}: BreakDirect,
 	{ClassJT, ClassAI}: BreakDirect,
 
-	// Combining marks (prohibited break before)
+	// Combining marks (LB9: prohibited break before)
 	{ClassXX, ClassCM}: BreakProhibited,
 	{ClassCM, ClassCM}: BreakProhibited,
+
+	// LB8: Break before any character following a zero-width space
+	// (ZW already has {ClassZW, ClassXX}: BreakDirect above)
+
+	// LB8a: Do not break after a zero width joiner
+	{ClassZWJ, ClassXX}: BreakProhibited,
+
+	// LB20: Break before and after CB (contingent break)
+	// (Already have {ClassCB, ClassXX}: BreakDirect)
+	{ClassXX, ClassCB}: BreakDirect,
+
+	// LB21a: Don't break after Hebrew + Hyphen
+	{ClassHL, ClassHY}: BreakProhibited,
+	{ClassHL, ClassBA}: BreakProhibited,
+
+	// LB21b: Don't break between Solidus and Hebrew
+	{ClassSY, ClassHL}: BreakProhibited,
+
+	// LB22: Do not break before ellipsis
+	// (IN rules already cover this)
+
+	// LB23a: Do not break between numeric prefixes and ideographs
+	{ClassPR, ClassID}: BreakProhibited, // Already have this
+	{ClassID, ClassPO}: BreakProhibited,
+	{ClassPO, ClassAL}: BreakProhibited,
+	{ClassPO, ClassHL}: BreakProhibited,
+
+	// LB26: Do not break Korean syllable
+	{ClassJL, ClassJL}: BreakProhibited,
+	{ClassJL, ClassJV}: BreakProhibited,
+	{ClassJL, ClassH2}: BreakProhibited,
+	{ClassJL, ClassH3}: BreakProhibited,
+	{ClassJV, ClassJV}: BreakProhibited,
+	{ClassJV, ClassJT}: BreakProhibited,
+	{ClassH2, ClassJV}: BreakProhibited,
+	{ClassH2, ClassJT}: BreakProhibited,
+	{ClassJT, ClassJT}: BreakProhibited,
+	{ClassH3, ClassJT}: BreakProhibited,
+
+	// LB27: Treat Korean Syllable Block as ID
+	{ClassJL, ClassIN}: BreakProhibited,
+	{ClassJL, ClassPO}: BreakProhibited,
+	{ClassJV, ClassIN}: BreakProhibited,
+	{ClassJV, ClassPO}: BreakProhibited,
+	{ClassJT, ClassIN}: BreakProhibited,
+	{ClassJT, ClassPO}: BreakProhibited,
+	{ClassH2, ClassIN}: BreakProhibited,
+	{ClassH2, ClassPO}: BreakProhibited,
+	{ClassH3, ClassIN}: BreakProhibited,
+	{ClassH3, ClassPO}: BreakProhibited,
+	{ClassJL, ClassPR}: BreakProhibited,
+	{ClassJV, ClassPR}: BreakProhibited,
+	{ClassJT, ClassPR}: BreakProhibited,
+	{ClassH2, ClassPR}: BreakProhibited,
+	{ClassH3, ClassPR}: BreakProhibited,
+
+	// LB28: Do not break between alphabetics
+	// (Already have AL × AL rules through default BreakProhibited)
+	{ClassAL, ClassAL}: BreakProhibited,
+	{ClassHL, ClassHL}: BreakProhibited,
+	{ClassAL, ClassHL}: BreakProhibited,
+	{ClassHL, ClassAL}: BreakProhibited,
+
+	// LB29: Do not break between numeric punctuation and alphabetics
+	{ClassIS, ClassAL}: BreakProhibited,
+	{ClassIS, ClassHL}: BreakProhibited,
+
+	// LB30: Do not break between letters, numbers, or ordinary symbols and OP/CP
+	{ClassAL, ClassOP}: BreakProhibited,
+	{ClassHL, ClassOP}: BreakProhibited,
+	{ClassNU, ClassOP}: BreakProhibited,
+	{ClassCP, ClassAL}: BreakProhibited,
+	{ClassCP, ClassHL}: BreakProhibited,
+	{ClassCP, ClassNU}: BreakProhibited,
+
+	// LB30a: Break between two regional indicator symbols if and only if
+	// there are an even number of RI preceding the position (complex - needs state)
+	// Simplified: don't break RI × RI pairs
+	{ClassRI, ClassRI}: BreakProhibited,
+
+	// LB30b: Do not break between an emoji base and an emoji modifier
+	{ClassEB, ClassEM}: BreakProhibited,
+	{ClassEM, ClassEM}: BreakProhibited,
+
+	// Indic conjunct rules (VF, VI, AS, AK, AP)
+	{ClassAS, ClassVI}: BreakProhibited,
+	{ClassAS, ClassAK}: BreakProhibited,
+	{ClassAK, ClassVI}: BreakProhibited,
+	{ClassAK, ClassVF}: BreakProhibited,
+	{ClassAK, ClassAK}: BreakProhibited,
+	{ClassAP, ClassAK}: BreakProhibited,
+	{ClassAP, ClassAS}: BreakProhibited,
+	{ClassVI, ClassAK}: BreakProhibited,
+	{ClassVF, ClassAK}: BreakProhibited,
 }
 
 // getBreakAction returns the break action between two character classes.
