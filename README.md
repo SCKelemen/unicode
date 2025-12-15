@@ -174,6 +174,27 @@ These implementations focus on practical text layout and rendering needs:
 - Layout-engine agnostic
 - Full conformance with Unicode standards
 
+## Unicode Version
+
+This repository implements **Unicode 17.0.0** (September 2024).
+
+### Why Not Use Go's Standard Library?
+
+Go's `unicode` package (as of Go 1.23) provides Unicode 15.0.0 data. While it includes some properties we need (e.g., `Regional_Indicator`, `Ideographic`, `Sentence_Terminal`), it is missing:
+
+- **Emoji properties**: `Extended_Pictographic`, `Emoji`, `Emoji_Presentation`, `Emoji_Modifier`, `Emoji_Modifier_Base`, `Emoji_Component`
+- **Text segmentation properties**: `Grapheme_Cluster_Break`, `Word_Break`, `Sentence_Break`
+- **Layout properties**: `East_Asian_Width`, `Line_Break`, `Vertical_Orientation`
+
+**Design Decision**: We implement all related properties within each specification package (e.g., all emoji properties in `uts51`) rather than mixing standard library and custom implementations. This ensures:
+
+1. **Consistency**: All properties from a specification come from one authoritative source
+2. **Completeness**: Unicode 17.0.0 support with the latest emoji and text handling
+3. **Maintainability**: Single source of truth for each Unicode specification
+4. **Testability**: 100% conformance against official Unicode 17.0.0 test files
+
+When Go's `unicode` package updates to Unicode 17.0.0, we will continue maintaining our implementations to provide the specialized properties not available in the standard library.
+
 ## Conformance
 
 All implementations follow the Unicode Standard and are tested against official Unicode conformance test suites where available:

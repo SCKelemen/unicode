@@ -206,7 +206,22 @@ func EmojiWidth(r rune) int {
 - `unicode.Is(unicode.Hebrew, r)` - Hebrew script
 - And many more...
 
-**No Action Needed**: We're appropriately using the standard library for basic Unicode properties and only implementing specialized properties (Extended_Pictographic, Regional_Indicator, etc.) that the standard library doesn't provide.
+**Standard Library Limitations**:
+
+Go's `unicode` package (Unicode 15.0.0) does provide `Regional_Indicator`, but is missing:
+- `Extended_Pictographic` ❌
+- `Emoji`, `Emoji_Presentation`, `Emoji_Modifier`, `Emoji_Modifier_Base`, `Emoji_Component` ❌
+- All UAX #29 break properties ❌
+- All UAX #11, #14, #50 properties ❌
+
+**Design Decision**: We implement all emoji properties in `uts51` (including `Regional_Indicator`) rather than mixing stdlib and custom implementations because:
+
+1. **Version consistency**: We implement Unicode 17.0.0, stdlib has 15.0.0
+2. **Completeness**: All emoji-related properties in one authoritative package
+3. **Single source of truth**: UTS #51 is the emoji specification
+4. **Maintainability**: Updates to emoji data happen in one place
+
+**No Action Needed**: We're appropriately using the standard library for basic Unicode properties and only implementing specialized properties that the standard library doesn't provide or that belong together as part of a Unicode specification.
 
 ## Priority Summary
 
