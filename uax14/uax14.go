@@ -483,10 +483,10 @@ var pairTable = map[[2]BreakClass]BreakAction{
 	{ClassPO, ClassAI}: BreakProhibited,
 	{ClassAI, ClassPR}: BreakProhibited, // Prefix
 	{ClassPR, ClassAI}: BreakProhibited,
-	{ClassAI, ClassOP}: BreakProhibited, // Opening (LB30)
+	// Note: AI CAN break before OP (unlike AL) - removed {ClassAI, ClassOP}: BreakProhibited
 	{ClassAI, ClassCL}: BreakProhibited, // Closing
 	{ClassAI, ClassCP}: BreakProhibited, // Close paren
-	{ClassAI, ClassQU}: BreakProhibited, // Quotation
+	// Note: AI CAN break before QU in certain contexts - removed {ClassAI, ClassQU}: BreakProhibited
 	{ClassAI, ClassNS}: BreakProhibited, // Nonstarter (LB16)
 	// Note: AI can break with BA, BB, B2 (they override the prohibition)
 	{ClassAI, ClassBB}: BreakDirect, // Break before
@@ -516,6 +516,13 @@ var pairTable = map[[2]BreakClass]BreakAction{
 	{ClassJV, ClassAI}: BreakDirect,
 	{ClassAI, ClassJT}: BreakDirect,
 	{ClassJT, ClassAI}: BreakDirect,
+	// AI does not break with complex context classes (SA, CJ, ZWJ)
+	{ClassAI, ClassSA}: BreakProhibited, // South East Asian
+	{ClassSA, ClassAI}: BreakProhibited,
+	{ClassAI, ClassCJ}: BreakProhibited, // Conditional Japanese Starter
+	{ClassCJ, ClassAI}: BreakProhibited,
+	{ClassAI, ClassZWJ}: BreakProhibited, // Zero Width Joiner
+	{ClassZWJ, ClassAI}: BreakProhibited,
 
 	// Combining marks (LB9: prohibited break before)
 	{ClassXX, ClassCM}: BreakProhibited,
@@ -697,18 +704,20 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 				// LB19: Do not break before or after QU (× SP* QU and QU SP* ×)
 				if lastNonSpaceClass == ClassOP || lastNonSpaceClass == ClassQU {
 					// Don't break - we're in "OP SP*" or "QU SP*" sequence
-				} else if currClass == ClassQU {
-					// LB19: Do not break before QU (× SP* QU)
+				} else if currClass == ClassQU && lastNonSpaceClass != ClassAI {
+					// LB19: Do not break before QU (× SP* QU), except after AI
+				} else if currClass == ClassGL && lastNonSpaceClass != ClassAI {
+					// Do not break before GL (× SP* GL), except after AI
 				} else if currClass == ClassBK || currClass == ClassCR || currClass == ClassLF ||
 					currClass == ClassNL || currClass == ClassCL || currClass == ClassCP ||
 					currClass == ClassEX || currClass == ClassIS || currClass == ClassSY ||
-					currClass == ClassWJ || currClass == ClassZW || currClass == ClassGL {
+					currClass == ClassWJ || currClass == ClassZW {
 					// LB6: Do not break before hard line breaks (BK, CR, LF, NL)
 					// LB7: Do not break before ZW (× ZW)
 					// LB11: Do not break before WJ (× WJ)
-					// LB12: Do not break after GL (× GL)
 					// LB13: Do not break before CL, CP, EX, IS, SY (closing punct)
 					// Note: NS removed - LB18 (break after space) overrides LB16 (× NS)
+					// Note: GL removed - handled above with AI exception
 				} else {
 					bytePos := len(string(runes[:i]))
 					breakPoints = append(breakPoints, bytePos)
@@ -756,18 +765,20 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 				// LB19: Do not break before or after QU (× SP* QU and QU SP* ×)
 				if lastNonSpaceClass == ClassOP || lastNonSpaceClass == ClassQU {
 					// Don't break - we're in "OP SP*" or "QU SP*" sequence
-				} else if currClass == ClassQU {
-					// LB19: Do not break before QU (× SP* QU)
+				} else if currClass == ClassQU && lastNonSpaceClass != ClassAI {
+					// LB19: Do not break before QU (× SP* QU), except after AI
+				} else if currClass == ClassGL && lastNonSpaceClass != ClassAI {
+					// Do not break before GL (× SP* GL), except after AI
 				} else if currClass == ClassBK || currClass == ClassCR || currClass == ClassLF ||
 					currClass == ClassNL || currClass == ClassCL || currClass == ClassCP ||
 					currClass == ClassEX || currClass == ClassIS || currClass == ClassSY ||
-					currClass == ClassWJ || currClass == ClassZW || currClass == ClassGL {
+					currClass == ClassWJ || currClass == ClassZW {
 					// LB6: Do not break before hard line breaks
 					// LB7: Do not break before ZW (× ZW)
 					// LB11: Do not break before WJ (× WJ)
-					// LB12: Do not break after GL (× GL)
 					// LB13: Do not break before CL, CP, EX, IS, SY
 					// Note: NS removed - LB18 (break after space) overrides LB16 (× NS)
+					// Note: GL removed - handled above with AI exception
 				} else {
 					bytePos := len(string(runes[:i]))
 					breakPoints = append(breakPoints, bytePos)
