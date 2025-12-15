@@ -26,6 +26,30 @@ text := "Hello world! This is a test."
 breaks := uax14.FindLineBreakOpportunities(text, uax14.HyphensManual)
 ```
 
+### [uax11](./uax11) - East Asian Width
+
+Implementation of UAX #11 (East Asian Width) for determining character display width in East Asian typography contexts.
+
+Supports:
+- East Asian Width property lookup (Ambiguous, Fullwidth, Halfwidth, Narrow, Neutral, Wide)
+- Context-based width resolution for ambiguous characters
+- Character and string display width calculation
+- Terminal emulator and monospace font support
+- Complete Unicode 17.0.0 data
+
+```go
+import "github.com/SCKelemen/unicode/uax11"
+
+// Determine character width
+width := uax11.LookupWidth('中')  // Returns Wide
+if uax11.IsWide('A') {
+    // Character occupies 2 units
+}
+
+// Calculate string display width
+width := uax11.StringWidth("Hello世界", uax11.ContextNarrow)  // Returns 9
+```
+
 ### uax9 - Bidirectional Algorithm
 
 *(Coming soon)* Implementation of UAX #9 for handling bidirectional text (e.g., mixing Latin and Arabic/Hebrew scripts).
@@ -37,6 +61,7 @@ breaks := uax14.FindLineBreakOpportunities(text, uax14.HyphensManual)
 ## Installation
 
 ```bash
+go get github.com/SCKelemen/unicode/uax11
 go get github.com/SCKelemen/unicode/uax14
 ```
 
@@ -56,6 +81,7 @@ These implementations focus on practical text layout and rendering needs:
 ## References
 
 - [Unicode Standard Annexes](https://www.unicode.org/reports/)
+- [UAX #11: East Asian Width](https://www.unicode.org/reports/tr11/)
 - [UAX #14: Line Breaking](https://www.unicode.org/reports/tr14/)
 - [UAX #9: Bidirectional Algorithm](https://www.unicode.org/reports/tr9/)
 - [UAX #29: Text Segmentation](https://www.unicode.org/reports/tr29/)
