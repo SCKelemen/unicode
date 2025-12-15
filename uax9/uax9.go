@@ -580,6 +580,7 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 	// W5: Sequence of ET adjacent to EN -> EN
 	// A sequence of ET is adjacent to EN if there's an EN before or after the sequence
 	// Note: Skip removed characters AND only look at same embedding level
+	// ET sequences can have removed characters in between (e.g., "ET PDF ET")
 	for i := 0; i < n; i++ {
 		if classes[i] == ClassET {
 			currentLevel := levels[i]
@@ -589,16 +590,36 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 
 			hasEN := false
 
-			// Find the start of the ET sequence at this level
+			// Find the start of the ET sequence at this level (skipping removed)
 			start := i
-			for start > 0 && classes[start-1] == ClassET && levels[start-1] == currentLevel {
-				start--
+			for j := i - 1; j >= 0; j-- {
+				if levels[j] < 0 {
+					continue // Skip removed
+				}
+				if levels[j] != currentLevel {
+					break // Different level
+				}
+				if classes[j] == ClassET {
+					start = j
+				} else {
+					break
+				}
 			}
 
-			// Find the end of the ET sequence at this level
+			// Find the end of the ET sequence at this level (skipping removed)
 			end := i
-			for end < n-1 && classes[end+1] == ClassET && levels[end+1] == currentLevel {
-				end++
+			for j := i + 1; j < n; j++ {
+				if levels[j] < 0 {
+					continue // Skip removed
+				}
+				if levels[j] != currentLevel {
+					break // Different level
+				}
+				if classes[j] == ClassET {
+					end = j
+				} else {
+					break
+				}
 			}
 
 			// Check if there's an EN before the sequence at same level (skip removed)
