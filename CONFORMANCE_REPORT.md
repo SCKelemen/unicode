@@ -2,10 +2,10 @@
 
 ## Summary
 
-Achieved **95.6% conformance** (18,485 / 19,338 tests passing) on the official Unicode LineBreakTest.txt (version 17.0.0).
+Achieved **97.3% conformance** (18,819 / 19,338 tests passing) on the official Unicode LineBreakTest.txt (version 17.0.0).
 
-**Improvement: +22.3 percentage points** (from 73.3% to 95.6%)
-**Additional tests passing: +4,319 tests**
+**Improvement: +24.0 percentage points** (from 73.3% to 97.3%)
+**Additional tests passing: +4,653 tests**
 
 ## Implementation Changes
 
@@ -66,7 +66,55 @@ Added LB17: "Do not break within '—', even with intervening spaces" (`B2 SP* B
 
 **Impact:** +2 tests passing
 
-### 7. Code Changes
+### 7. Added Missing BA × X Pair Table Entries (95.6% → 95.9%)
+
+Fixed missing BA (Break After) pair table entries:
+- Parser only generated BA_EA × X entries from HTML table
+- TAB (U+0009) is BAmEastAsian → ClassBA (non-EA width)
+- Mirrored all 64 BA_EA × X entries to create BA × X entries
+- Key entry: BA × BA = BreakIndirect (not default BreakDirect)
+
+**Impact:** +57 tests
+
+### 8. Implemented LB10 (CM After Mandatory Breaks) (95.9% → 96.7%)
+
+Fixed combining marks following mandatory breaks:
+- Per LB10: Treat CM/ZWJ following BK, LF, NL, or CR as AL
+- Prevents extra break in sequences like BK CM AI
+- Added check after mandatory break handling: if currClass is CM/ZWJ, set prevClass = AL
+
+**Impact:** +164 tests
+
+### 9. Fixed GL Handling in BreakDirect (96.7% → 96.8%)
+
+Removed GL from BreakDirect exclusion lists:
+- Default case and BA/B2 special case both prevented breaks before GL
+- When pair table explicitly says BreakDirect for X × GL, should break
+- Pair table already encodes LB12 (× GL) where appropriate
+- Example: BA × GL pair table says BreakDirect, so break
+
+**Impact:** +8 tests
+
+### 10. Separated CB from HY Handling (96.8% → 97.2%)
+
+Fixed CB (Contingent Break) handling:
+- CB was incorrectly lumped with HY (hyphens)
+- CB controlled by hyphens setting, but CB is not a hyphen
+- Separated CB into its own case before HY/BA/B2 check
+- CB now follows pair table instead of hyphens setting
+
+**Impact:** +91 tests
+
+### 11. Implemented LB16 Context Rule (97.2% → 97.3%)
+
+Added LB16: (CL | CP) SP* × NS
+- Don't break between closing punctuation and NS, even with spaces
+- Similar to LB14 (OP SP*) and LB17 (B2 SP* B2) context rules
+- Added check in both BreakIndirect and BreakDirect SP handling
+
+**Impact:** +14 tests
+
+### 12. Code Changes
 
 **Modified:** `uax14/uax14.go`
 - Lines 4226-4233: Add SA combining mark detection (check Mn/Mc Unicode category)
@@ -92,9 +140,14 @@ Added LB17: "Do not break within '—', even with intervening spaces" (`B2 SP* B
 | After LB18 fixes (GL/QU) | 94.9% | 18,352 / 19,338 | +261 |
 | After LB9 (CM/ZWJ/SA) | 95.6% | 18,483 / 19,338 | +131 |
 | After LB17 (B2 SP* B2) | 95.6% | 18,485 / 19,338 | +2 |
-| **Final** | **95.6%** | **18,485 / 19,338** | **+4,319** |
+| After BA pair table | 95.9% | 18,542 / 19,338 | +57 |
+| After LB10 (CM after mandatory) | 96.7% | 18,706 / 19,338 | +164 |
+| After GL BreakDirect fix | 96.8% | 18,714 / 19,338 | +8 |
+| After CB separation | 97.2% | 18,805 / 19,338 | +91 |
+| After LB16 (CL SP* NS) | 97.3% | 18,819 / 19,338 | +14 |
+| **Final** | **97.3%** | **18,819 / 19,338** | **+4,653** |
 
-### Remaining Failures (853 tests = 4.4%)
+### Remaining Failures (519 tests = 2.7%)
 
 Analysis of current failures (as of commit e21faea):
 
@@ -183,15 +236,20 @@ Refine remaining context-dependent patterns:
 
 ## Summary of Achievement
 
-Starting from **73.3%** conformance, achieved **95.6%** (+22.3 percentage points):
+Starting from **73.3%** conformance, achieved **97.3%** (+24.0 percentage points):
 - ✓ Integrated official Unicode pair table (3,648 entries with EA width variants)
 - ✓ Fixed mandatory break handling (LB4, LB5)
-- ✓ Implemented complete LB9 (CM, ZWJ, SA combining marks)
+- ✓ Implemented LB9 (CM, ZWJ, SA combining marks)
+- ✓ Implemented LB10 (CM after mandatory breaks treated as AL)
 - ✓ Fixed LB18 space handling (GL, QU)
+- ✓ Implemented LB16 context rule ((CL | CP) SP* × NS)
 - ✓ Implemented LB17 context rule (B2 SP* B2)
 - ✓ Integrated UAX #11 for East Asian Width support
+- ✓ Added missing BA × X pair table entries (64 entries)
+- ✓ Fixed GL handling in BreakDirect case
+- ✓ Separated CB from HY handling
 
-**4,319 additional tests passing** (14,166 → 18,485 out of 19,338)
+**4,653 additional tests passing** (14,166 → 18,819 out of 19,338)
 
 ## Test Data
 
