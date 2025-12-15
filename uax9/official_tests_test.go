@@ -153,6 +153,9 @@ func computeLevels(classes []BidiClass, paraLevel int) []int {
 	// Process explicit embeddings and isolates
 	processExplicitLevels(classes, levels, paraLevel)
 
+	// Detect empty isolates
+	isEmptyIsolate := detectEmptyIsolates(classes, levels)
+
 	// Make a copy of classes since they will be modified
 	classesCopy := make([]BidiClass, n)
 	copy(classesCopy, classes)
@@ -161,7 +164,7 @@ func computeLevels(classes []BidiClass, paraLevel int) []int {
 	resolveWeakTypes(classesCopy, levels)
 
 	// Resolve neutral types
-	resolveNeutralTypes(classesCopy, levels, paraLevel)
+	resolveNeutralTypes(classesCopy, levels, paraLevel, isEmptyIsolate)
 
 	// Resolve implicit levels
 	resolveImplicitLevels(classesCopy, levels)

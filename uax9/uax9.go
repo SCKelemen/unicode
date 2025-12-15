@@ -245,11 +245,14 @@ func Reorder(text string, baseDir Direction) string {
 	// Process explicit embeddings and isolates (X1-X8)
 	processExplicitLevels(classes, levels, paraLevel)
 
+	// Detect empty isolates (isolate initiator immediately followed by PDI)
+	isEmptyIsolate := detectEmptyIsolates(classes, levels)
+
 	// Resolve weak types (W1-W7)
 	resolveWeakTypes(classes, levels)
 
 	// Resolve neutral types (N0-N2)
-	resolveNeutralTypes(classes, levels, paraLevel)
+	resolveNeutralTypes(classes, levels, paraLevel, isEmptyIsolate)
 
 	// Resolve implicit levels (I1-I2)
 	resolveImplicitLevels(classes, levels)
@@ -705,8 +708,43 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 	}
 }
 
+// detectEmptyIsolates marks empty isolates (isolate initiator immediately followed by PDI)
+// Empty isolate formatting characters should be treated as neutrals for proper level resolution
+func detectEmptyIsolates(classes []BidiClass, levels []int) []bool {
+	n := len(classes)
+	isEmptyIsolate := make([]bool, n)
+
+	for i := 0; i < n; i++ {
+		if classes[i] == ClassLRI || classes[i] == ClassRLI || classes[i] == ClassFSI {
+			// Look ahead for matching PDI, skipping removed characters (level < 0)
+			foundNonRemoved := false
+			pdiIndex := -1
+
+			for j := i + 1; j < n; j++ {
+				if levels[j] < 0 {
+					continue // Skip removed characters (BN, PDF, LRE, RLE, etc.)
+				}
+				if classes[j] == ClassPDI {
+					pdiIndex = j
+				} else {
+					foundNonRemoved = true
+				}
+				break // Stop at first non-removed character
+			}
+
+			// If no non-removed characters between initiator and PDI, mark as empty
+			if !foundNonRemoved && pdiIndex >= 0 {
+				isEmptyIsolate[i] = true
+				isEmptyIsolate[pdiIndex] = true
+			}
+		}
+	}
+
+	return isEmptyIsolate
+}
+
 // resolveNeutralTypes implements rules N0-N2 of the algorithm.
-func resolveNeutralTypes(classes []BidiClass, levels []int, paraLevel int) {
+func resolveNeutralTypes(classes []BidiClass, levels []int, paraLevel int, isEmptyIsolate []bool) {
 	n := len(classes)
 
 	// Helper to check if a class is strong (L, R, or AN/EN which behave as R)
@@ -719,10 +757,21 @@ func resolveNeutralTypes(classes []BidiClass, levels []int, paraLevel int) {
 
 	// N1 and N2: Neutrals take direction from surrounding strong types
 	// Note: Isolate formatting characters (RLI, LRI, FSI, PDI) keep their types
+	// Exception: Empty isolate formatting characters are treated as neutrals
 	// Search within same level run (same embedding level), use sos/eos at boundaries
 	for i := 0; i < n; i++ {
-		if classes[i] == ClassWS || classes[i] == ClassON ||
-			classes[i] == ClassB || classes[i] == ClassS {
+		isNeutral := classes[i] == ClassWS || classes[i] == ClassON ||
+			classes[i] == ClassB || classes[i] == ClassS
+
+		// Empty isolate formatting characters should be treated as neutrals
+		if !isNeutral && isEmptyIsolate[i] {
+			if classes[i] == ClassLRI || classes[i] == ClassRLI ||
+				classes[i] == ClassFSI || classes[i] == ClassPDI {
+				isNeutral = true
+			}
+		}
+
+		if isNeutral {
 
 			currentLevel := levels[i]
 			if currentLevel < 0 {

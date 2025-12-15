@@ -294,6 +294,10 @@ func TestDebugSpecificFailure(t *testing.T) {
 	t.Logf("After explicit levels: %v", levels)
 	t.Logf("Classes after explicit: %v", classesToString(classes))
 
+	// Detect empty isolates
+	isEmptyIsolate := detectEmptyIsolates(classes, levels)
+	t.Logf("Empty isolates: %v", isEmptyIsolate)
+
 	// Resolve weak types
 	classesCopy := make([]BidiClass, n)
 	copy(classesCopy, classes)
@@ -302,7 +306,7 @@ func TestDebugSpecificFailure(t *testing.T) {
 	t.Logf("Classes after weak: %v", classesToString(classesCopy))
 
 	// Resolve neutral types
-	resolveNeutralTypes(classesCopy, levels, paraLevel)
+	resolveNeutralTypes(classesCopy, levels, paraLevel, isEmptyIsolate)
 	t.Logf("After neutral types: %v", levels)
 	t.Logf("Classes after neutral: %v", classesToString(classesCopy))
 

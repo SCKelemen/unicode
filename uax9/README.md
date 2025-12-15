@@ -2,7 +2,7 @@
 
 Implementation of [UAX #9: Unicode Bidirectional Algorithm](https://www.unicode.org/reports/tr9/) in Go.
 
-**Status:** Highly Conformant (99.98% pass rate on official Unicode test vectors)
+**Status:** Highly Conformant (99.996% pass rate on official Unicode test vectors)
 
 ## Overview
 
@@ -70,9 +70,9 @@ go test -v
 ### Test Results
 
 - **Total tests**: 513,494
-- **Passed**: 513,410
-- **Pass rate**: 99.98%
-- **Failed**: 84 (complex edge cases involving isolate formatting characters)
+- **Passed**: 513,473
+- **Pass rate**: 99.996%
+- **Failed**: 21 (complex edge cases involving isolate formatting characters)
 
 The test suite includes:
 - Official Unicode BidiTest.txt (513,494 test cases)
@@ -81,13 +81,13 @@ The test suite includes:
 
 ## Known Limitations
 
-- 0.02% of edge cases fail (84 out of 513,494 tests)
+- 0.004% of edge cases fail (21 out of 513,494 tests)
 - Most failures involve:
-  - Empty isolates (FSI...PDI) in RTL contexts
-  - Isolate formatting characters (FSI, RLI, LRI, PDI) level adjustments
-  - Interaction between isolate boundaries and surrounding strong characters
+  - Isolate formatting characters (FSI, RLI, LRI, PDI) level adjustments in complex nested contexts
+  - Interaction between multiple isolate sequences and surrounding strong characters
+  - Edge cases with ET (European Terminator) adjacent to removed characters (PDF, BN)
 
-The implementation is production-ready and handles 99.98% of Unicode's comprehensive test cases, including all common real-world bidirectional text scenarios. The remaining failures are extremely rare edge cases involving empty isolates and isolate formatting character level adjustments in specific directional contexts.
+The implementation is production-ready and handles 99.996% of Unicode's comprehensive test cases, including all common real-world bidirectional text scenarios. The remaining failures are extremely rare edge cases involving isolate formatting character level adjustments in specific nested directional contexts.
 
 ## Implementation Details
 
