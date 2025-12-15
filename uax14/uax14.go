@@ -4430,8 +4430,30 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 					checkIdx--
 				}
 			}
+			// Check for LB28.12: DottedCircle × VF or VI
+			isDottedCircleVF := false
+			if currClass == ClassVF || currClass == ClassVI {
+				// Look back past CM/ZWJ to find base character
+				checkIdx := i - 1
+				for checkIdx >= 0 {
+					checkRune := runes[checkIdx]
+					checkClass := getBreakClass(checkRune)
+					if !isClassOrVariant(checkClass, ClassCM) && checkClass != ClassZWJ {
+						if checkRune == 0x25CC { // DOTTED CIRCLE
+							isDottedCircleVF = true
+						}
+						break
+					}
+					checkIdx--
+				}
+			}
+
 			if currClass == ClassEM && (baseClass == ClassXX || (baseClass == ClassID && isExtPict)) {
 				// Don't break - EM attaches to emoji base (ExtPict)
+			} else if (currClass == ClassVF || currClass == ClassVI) &&
+				(baseClass == ClassAK || baseClass == ClassAS || isDottedCircleVF) {
+				// LB28.11/28.12: Do not break between Aksara/DottedCircle and Virama
+				// (AK | AS | DottedCircle) × (VF | VI)
 			} else if prevClass == ClassZW {
 				// Zero-width space always allows break
 				bytePos := len(string(runes[:i]))
