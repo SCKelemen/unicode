@@ -98,6 +98,11 @@ func getGraphemeBreakClass(r rune) GraphemeBreakClass {
 		return GBT
 	}
 
+	// Emoji modifiers (skin tones) are Extend (must check before ExtendedPictographic)
+	if r >= 0x1F3FB && r <= 0x1F3FF {
+		return GBExtend
+	}
+
 	// Extended Pictographic
 	// This is a simplified check - full implementation would need the full Unicode data
 	if isExtendedPictographic(r) {
@@ -110,7 +115,13 @@ func getGraphemeBreakClass(r rune) GraphemeBreakClass {
 	}
 
 	// Spacing marks
+	// Note: Only SOME Mc characters are SpacingMark for grapheme breaking
+	// Myanmar U+102C is Mc but NOT SpacingMark
 	if unicode.Is(unicode.Mc, r) {
+		// Exclude Myanmar vowel signs that are not SpacingMark
+		if (r >= 0x1023 && r <= 0x1030 && r != 0x1031) || (r >= 0x1040 && r <= 0x104F) {
+			return GBOther
+		}
 		return GBSpacingMark
 	}
 
@@ -120,17 +131,106 @@ func getGraphemeBreakClass(r rune) GraphemeBreakClass {
 // isExtendedPictographic checks if a rune is an extended pictographic character
 // This is a simplified version - a complete implementation would use Unicode data files
 func isExtendedPictographic(r rune) bool {
-	// Common emoji ranges
-	if r >= 0x1F300 && r <= 0x1F9FF {
+	// Emoji modifiers (skin tones) are NOT ExtendedPictographic, they are Extend
+	if r >= 0x1F3FB && r <= 0x1F3FF {
+		return false
+	}
+	// Common emoji ranges (excluding modifiers)
+	if r >= 0x1F300 && r <= 0x1F5FF {
 		return true
 	}
-	if r >= 0x2600 && r <= 0x27BF {
+	if r >= 0x1F600 && r <= 0x1F64F {
+		return true
+	}
+	if r >= 0x1F680 && r <= 0x1F6FF {
+		return true
+	}
+	if r >= 0x1F900 && r <= 0x1F9FF {
+		return true
+	}
+	// Misc Symbols (sparse - only some are ExtPict)
+	// Simplified: include common emoji symbols, exclude scissors (U+2700-2704)
+	if r >= 0x2600 && r <= 0x26FF && !(r >= 0x2700 && r <= 0x2704) {
+		return true
+	}
+	if r >= 0x2700 && r <= 0x27BF && r >= 0x2705 {
 		return true
 	}
 	if r >= 0x1F000 && r <= 0x1F02F {
 		return true
 	}
 	if r >= 0x1FA00 && r <= 0x1FAFF {
+		return true
+	}
+	return false
+}
+
+// isIndicConjunctLinker checks if a rune has InCB=Linker property (virama, etc.)
+func isIndicConjunctLinker(r rune) bool {
+	// Common virama/linker characters
+	linkers := []rune{
+		0x094D, 0x09CD, 0x0ACD, 0x0B4D, 0x0C4D, 0x0D4D, // Devanagari, Bengali, Gujarati, Oriya, Telugu, Malayalam
+		0x1039, 0x17D2, 0x1A60, 0x1B44, 0x1BAB, 0xA9C0, 0xAAF6, // Myanmar, Khmer, Tai Tham, Balinese, Sundanese, Javanese, Meetei
+		0x10A3F, 0x11133, 0x113D0, 0x1193E, 0x11A47, 0x11A99, // Kharoshthi, Chakma, Tulu-Tigalari, Dives Akuru, Zanabazar, Soyombo
+		0x11C3F, 0x11D45, 0x11D97, // Bhaiksuki, Masaram Gondi, Gunjala Gondi
+	}
+	for _, linker := range linkers {
+		if r == linker {
+			return true
+		}
+	}
+	return false
+}
+
+// isIndicConjunctConsonant checks if a rune has InCB=Consonant property
+func isIndicConjunctConsonant(r rune) bool {
+	// Devanagari consonants
+	if (r >= 0x0915 && r <= 0x0939) || (r >= 0x0958 && r <= 0x095F) || (r >= 0x0978 && r <= 0x097F) {
+		return true
+	}
+	// Bengali consonants
+	if (r >= 0x0995 && r <= 0x09A8) || (r >= 0x09AA && r <= 0x09B0) || r == 0x09B2 ||
+		(r >= 0x09B6 && r <= 0x09B9) || (r >= 0x09DC && r <= 0x09DD) || r == 0x09DF ||
+		(r >= 0x09F0 && r <= 0x09F1) {
+		return true
+	}
+	// Gujarati consonants
+	if (r >= 0x0A95 && r <= 0x0AA8) || (r >= 0x0AAA && r <= 0x0AB0) ||
+		(r >= 0x0AB2 && r <= 0x0AB3) || (r >= 0x0AB5 && r <= 0x0AB9) || r == 0x0AF9 {
+		return true
+	}
+	// Oriya consonants
+	if (r >= 0x0B15 && r <= 0x0B28) || (r >= 0x0B2A && r <= 0x0B30) ||
+		(r >= 0x0B32 && r <= 0x0B33) || (r >= 0x0B35 && r <= 0x0B39) ||
+		(r >= 0x0B5C && r <= 0x0B5D) || r == 0x0B5F || r == 0x0B71 {
+		return true
+	}
+	// Telugu consonants
+	if (r >= 0x0C15 && r <= 0x0C28) || (r >= 0x0C2A && r <= 0x0C39) ||
+		(r >= 0x0C58 && r <= 0x0C5A) || (r >= 0x0C78 && r <= 0x0C7F) {
+		return true
+	}
+	// Malayalam consonants
+	if (r >= 0x0D15 && r <= 0x0D28) || (r >= 0x0D2A && r <= 0x0D39) ||
+		(r >= 0x0D54 && r <= 0x0D56) || (r >= 0x0D5F && r <= 0x0D61) || (r >= 0x0D7A && r <= 0x0D7F) {
+		return true
+	}
+	// Myanmar consonants
+	if (r >= 0x1000 && r <= 0x102A) || r == 0x103F || (r >= 0x1050 && r <= 0x1055) ||
+		(r >= 0x105A && r <= 0x105D) || r == 0x1061 || (r >= 0x1065 && r <= 0x1066) ||
+		(r >= 0x106E && r <= 0x1070) || (r >= 0x1075 && r <= 0x1081) || r == 0x108E {
+		return true
+	}
+	// Balinese consonants
+	if (r >= 0x1B0B && r <= 0x1B0C) || (r >= 0x1B13 && r <= 0x1B33) || (r >= 0x1B45 && r <= 0x1B4C) {
+		return true
+	}
+	// Sundanese consonants
+	if (r >= 0x1B83 && r <= 0x1BA0) || (r >= 0x1BAE && r <= 0x1BAF) || (r >= 0x1BBB && r <= 0x1BBD) {
+		return true
+	}
+	// Khmer consonants
+	if (r >= 0x1780 && r <= 0x17A2) || (r >= 0x17A5 && r <= 0x17A7) || (r >= 0x17A9 && r <= 0x17B3) {
 		return true
 	}
 	return false
@@ -215,25 +315,67 @@ func FindGraphemeBreaks(text string) []int {
 		} else if prev == GBPrepend {
 			// GB9b: Don't break after Prepend
 			shouldBreak = false
-		} else if prev == GBExtendedPictographic {
-			// GB11: Check for emoji sequences
-			// Look back for ExtendedPictographic followed by Extend* ZWJ
-			lookback := i - 1
-			foundZWJ := false
-			for lookback > 0 && getGraphemeBreakClass(runes[lookback]) == GBExtend {
-				lookback--
-			}
-			if lookback > 0 && getGraphemeBreakClass(runes[lookback]) == GBZWJ {
-				lookback--
-				for lookback >= 0 && getGraphemeBreakClass(runes[lookback]) == GBExtend {
-					lookback--
+		} else if isIndicConjunctConsonant(runes[i]) {
+			// GB9c: InCB=Consonant [InCB=Extend InCB=Linker]* InCB=Linker [InCB=Extend InCB=Linker]* × InCB=Consonant
+			// Check if there's a Linker before current Consonant (with optional Extend/ZWJ/Linker in between)
+			j := i - 1
+			foundLinker := false
+			// Skip back through Extend, ZWJ, and Linker characters
+			for j >= 0 {
+				// Check for Linker first (before checking Extend, since Linkers are also Extend)
+				if isIndicConjunctLinker(runes[j]) {
+					foundLinker = true
+					j--
+					break
 				}
-				if lookback >= 0 && getGraphemeBreakClass(runes[lookback]) == GBExtendedPictographic {
-					foundZWJ = true
+				rClass := getGraphemeBreakClass(runes[j])
+				if rClass == GBExtend || rClass == GBZWJ {
+					j--
+					continue
+				}
+				break
+			}
+			if foundLinker {
+				// Continue looking back through Extend/Linker for a Consonant
+				for j >= 0 {
+					// Check for Consonant
+					if isIndicConjunctConsonant(runes[j]) {
+						// Found the pattern: Consonant ... Linker ... Consonant
+						shouldBreak = false
+						break
+					}
+					// Check for Linker
+					if isIndicConjunctLinker(runes[j]) {
+						j--
+						continue
+					}
+					rClass := getGraphemeBreakClass(runes[j])
+					if rClass == GBExtend || rClass == GBZWJ {
+						j--
+						continue
+					}
+					break
 				}
 			}
-			if foundZWJ && curr == GBExtendedPictographic {
-				shouldBreak = false
+		} else if curr == GBExtendedPictographic {
+			// GB11: ExtendedPictographic Extend* ZWJ × ExtendedPictographic
+			// Check if there's a ZWJ before current position (with optional Extend in between)
+			j := i - 1
+			// Skip any Extend characters
+			for j >= 0 && getGraphemeBreakClass(runes[j]) == GBExtend {
+				j--
+			}
+			// Check if we have ZWJ
+			if j >= 0 && getGraphemeBreakClass(runes[j]) == GBZWJ {
+				// Now look back further for ExtendedPictographic (with optional Extend in between)
+				j--
+				for j >= 0 && getGraphemeBreakClass(runes[j]) == GBExtend {
+					j--
+				}
+				if j >= 0 && getGraphemeBreakClass(runes[j]) == GBExtendedPictographic {
+					// We found the pattern: ExtPict Extend* ZWJ Extend* ExtPict
+					shouldBreak = false
+				}
 			}
 		} else if prev == GBRegionalIndicator && curr == GBRegionalIndicator {
 			// GB12/GB13: Regional Indicator pairs
