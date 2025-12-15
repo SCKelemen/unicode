@@ -4405,7 +4405,13 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 		case BreakDirect:
 			// Direct break - add for explicit break characters and ideographic text
 			// Don't break between regular alphabetic characters (to keep words together)
-			if prevClass == ClassZW {
+
+			// LB30: Do not break between Emoji Base and Emoji Modifier
+			// Emoji Base includes XX (unassigned Extended_Pictographic)
+			// Note: Full Extended_Pictographic support would require additional Unicode data
+			if currClass == ClassEM && prevClass == ClassXX {
+				// Don't break - EM attaches to emoji base (XX = ExtPict)
+			} else if prevClass == ClassZW {
 				// Zero-width space always allows break
 				bytePos := len(string(runes[:i]))
 				breakPoints = append(breakPoints, bytePos)
