@@ -491,14 +491,38 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 	}
 
 	// W4: Single separator between numbers -> number
-	for i := 1; i < n-1; i++ {
+	// Skip removed characters when looking for adjacent numbers
+	for i := 0; i < n; i++ {
 		if classes[i] == ClassES || classes[i] == ClassCS {
-			prevNum := classes[i-1] == ClassEN || classes[i-1] == ClassAN
-			nextNum := classes[i+1] == ClassEN || classes[i+1] == ClassAN
-			if prevNum && nextNum {
-				if classes[i-1] == ClassEN && classes[i+1] == ClassEN {
+			// Look backward for number (skip removed characters)
+			var prevClass BidiClass = -1
+			for j := i - 1; j >= 0; j-- {
+				if levels[j] < 0 {
+					continue
+				}
+				prevClass = classes[j]
+				break
+			}
+
+			// Look forward for number (skip removed characters)
+			var nextClass BidiClass = -1
+			for j := i + 1; j < n; j++ {
+				if levels[j] < 0 {
+					continue
+				}
+				nextClass = classes[j]
+				break
+			}
+
+			// ES between ENs -> EN
+			if classes[i] == ClassES && prevClass == ClassEN && nextClass == ClassEN {
+				classes[i] = ClassEN
+			}
+			// CS between same number types -> that type
+			if classes[i] == ClassCS {
+				if prevClass == ClassEN && nextClass == ClassEN {
 					classes[i] = ClassEN
-				} else if classes[i-1] == ClassAN && classes[i+1] == ClassAN {
+				} else if prevClass == ClassAN && nextClass == ClassAN {
 					classes[i] = ClassAN
 				}
 			}
@@ -507,6 +531,7 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 
 	// W5: Sequence of ET adjacent to EN -> EN
 	// A sequence of ET is adjacent to EN if there's an EN before or after the sequence
+	// Note: Skip removed characters (BN, PDF, etc.) when looking for adjacency
 	for i := 0; i < n; i++ {
 		if classes[i] == ClassET {
 			hasEN := false
@@ -523,14 +548,28 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 				end++
 			}
 
-			// Check if there's an EN before the sequence
-			if start > 0 && classes[start-1] == ClassEN {
-				hasEN = true
+			// Check if there's an EN before the sequence (skip removed characters)
+			for j := start - 1; j >= 0; j-- {
+				if levels[j] < 0 {
+					continue // Skip removed characters
+				}
+				if classes[j] == ClassEN {
+					hasEN = true
+				}
+				break
 			}
 
-			// Check if there's an EN after the sequence
-			if !hasEN && end < n-1 && classes[end+1] == ClassEN {
-				hasEN = true
+			// Check if there's an EN after the sequence (skip removed characters)
+			if !hasEN {
+				for j := end + 1; j < n; j++ {
+					if levels[j] < 0 {
+						continue // Skip removed characters
+					}
+					if classes[j] == ClassEN {
+						hasEN = true
+					}
+					break
+				}
 			}
 
 			// If adjacent to EN, mark all ET in sequence as EN
