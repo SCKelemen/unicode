@@ -4387,6 +4387,41 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			continue
 		}
 
+		// LB30a: Do not break within emoji flag sequences
+		// Break between regional indicators if and only if there is an even number of RIs before the break point
+		// RI × RI for pairs, RI × RI ÷ RI for triples
+		if currClass == ClassRI && prevClass == ClassRI {
+			// Count the number of consecutive RI characters before the current position
+			riCount := 0
+			checkIdx := i - 1
+			for checkIdx >= 0 {
+				checkClass := getBreakClass(runes[checkIdx])
+				if checkClass != ClassRI {
+					break
+				}
+				riCount++
+				checkIdx--
+			}
+
+			// If there's an even number of RIs before current position, allow break
+			if riCount > 0 && riCount%2 == 0 {
+				bytePos := len(string(runes[:i]))
+				breakPoints = append(breakPoints, bytePos)
+				prevClass = currClass
+				if currClass != ClassSP {
+					lastNonSpaceClass = currClass
+				}
+				continue
+			}
+			// If odd number of RIs before, don't break - pair them up
+			// Continue to update prevClass without breaking
+			prevClass = currClass
+			if currClass != ClassSP {
+				lastNonSpaceClass = currClass
+			}
+			continue
+		}
+
 		// Only add break points for:
 		// 1. Mandatory breaks (newlines, etc.)
 		// 2. Spaces (word boundaries)
@@ -4498,9 +4533,10 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 				}
 			}
 
-			if currClass == ClassEM && (baseClass == ClassXX || isExtPict) {
+			if currClass == ClassEM && (baseClass == ClassXX || isExtPict) && baseClass != ClassRI && baseClass != ClassEM {
 				// LB30: Don't break between Emoji Base (Extended_Pictographic) and Emoji Modifier
 				// Check both baseClass==XX and isExtPict (for misclassified ExtPict characters)
+				// But exclude RI and EM themselves - they are not emoji bases
 			} else if (currClass == ClassVF || currClass == ClassVI) &&
 				(baseClass == ClassAK || baseClass == ClassAS || isDottedCircleVF) {
 				// LB28.11/28.12: Do not break between Aksara/DottedCircle and Virama
