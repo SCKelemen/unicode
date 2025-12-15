@@ -4539,6 +4539,35 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			continue
 		}
 
+		// Special case: HY × HL after SP when CM intervenes
+		// Pattern: SP ÷ CM × HY ÷ HL
+		// BreakIndirect checks prevClass == SP, but CM causes prevClass to be HY
+		// Look back past HY to find CM, then check if CM follows SP
+		if action == BreakIndirect && prevClass == ClassHY && currClass == ClassHL && i >= 2 {
+			prevRune := runes[i-1]
+			prevRuneClass := getBreakClass(prevRune)
+			if prevRuneClass == ClassHY && i >= 3 {
+				// Check if HY is preceded by CM
+				prevPrevRune := runes[i-2]
+				prevPrevClass := getBreakClass(prevPrevRune)
+				if isClassOrVariant(prevPrevClass, ClassCM) && i >= 4 {
+					// Check if CM is preceded by SP
+					prevPrevPrevRune := runes[i-3]
+					prevPrevPrevClass := getBreakClass(prevPrevPrevRune)
+					if prevPrevPrevClass == ClassSP {
+						// SP × CM × HY ÷ HL - allow break
+						bytePos := len(string(runes[:i]))
+						breakPoints = append(breakPoints, bytePos)
+						prevClass = currClass
+						if currClass != ClassSP {
+							lastNonSpaceClass = currClass
+						}
+						continue
+					}
+				}
+			}
+		}
+
 		// Only add break points for:
 		// 1. Mandatory breaks (newlines, etc.)
 		// 2. Spaces (word boundaries)
