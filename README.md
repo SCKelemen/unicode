@@ -1,5 +1,8 @@
 # unicode
 
+[![CI](https://github.com/SCKelemen/unicode/workflows/CI/badge.svg)](https://github.com/SCKelemen/unicode/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/SCKelemen/unicode)](https://goreportcard.com/report/github.com/SCKelemen/unicode)
+
 Implementations of various Unicode® Standard Annexes in Go.
 
 This repository provides Go packages for Unicode text processing algorithms, organized by UAX (Unicode Standard Annex) specification.
