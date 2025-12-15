@@ -390,10 +390,12 @@ var pairTable = map[[2]BreakClass]BreakAction{
 	{ClassBA, ClassSP}: BreakProhibited,  // Let space handle the break
 	{ClassBA, ClassCM}: BreakProhibited,  // Don't break before combining marks
 	{ClassBA, ClassGL}: BreakProhibited,  // Don't break before glue
+	{ClassBA, ClassZW}: BreakProhibited,  // LB8: Don't break before ZW
 	{ClassB2, ClassBA}: BreakProhibited,  // Don't break between B2 and BA
 	{ClassB2, ClassSP}: BreakProhibited,  // Let space handle the break
 	{ClassB2, ClassCM}: BreakProhibited,  // Don't break before combining marks
 	{ClassB2, ClassGL}: BreakProhibited,  // Don't break before glue
+	{ClassB2, ClassZW}: BreakProhibited,  // LB8: Don't break before ZW
 
 	// Break before
 	{ClassXX, ClassBB}: BreakDirect,
@@ -621,15 +623,14 @@ var pairTable = map[[2]BreakClass]BreakAction{
 	{ClassEM, ClassEM}: BreakProhibited,
 
 	// Indic conjunct rules (VF, VI, AS, AK, AP)
-	{ClassAS, ClassVI}: BreakProhibited,
-	{ClassAS, ClassAK}: BreakProhibited,
-	{ClassAK, ClassVI}: BreakProhibited,
-	{ClassAK, ClassVF}: BreakProhibited,
-	{ClassAK, ClassAK}: BreakProhibited,
-	{ClassAP, ClassAK}: BreakProhibited,
-	{ClassAP, ClassAS}: BreakProhibited,
-	{ClassVI, ClassAK}: BreakProhibited,
-	{ClassVF, ClassAK}: BreakProhibited,
+	// These rules are for virama-based conjunct formation
+	// Only prohibit breaks in specific virama contexts
+	{ClassAS, ClassVI}: BreakProhibited, // Aksara Start × Virama
+	{ClassVI, ClassAK}: BreakProhibited, // Virama × Aksara
+	{ClassAK, ClassVI}: BreakProhibited, // Aksara × Virama
+	{ClassAK, ClassVF}: BreakProhibited, // Aksara × Virama Final
+	// Note: Removed AK × AK, AS × AK, AP × AK, AP × AS, VF × AK
+	// These should allow breaks unless in virama context
 }
 
 // getBreakAction returns the break action between two character classes.
@@ -746,10 +747,10 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 				isSoftHyphen := i > 0 && runes[i-1] == '\u00AD'
 
 				if prevClass == ClassBA || prevClass == ClassB2 {
-					// BA/B2 characters: allow break, but not immediately before SP or CM
+					// BA/B2 characters: allow break, but not immediately before SP, CM, GL, ZW
 					// The break should happen after the following space/character
-					if currClass != ClassSP && currClass != ClassCM && currClass != ClassGL {
-						// BA/B2 × ! (SP|CM|GL) - break after BA/B2
+					if currClass != ClassSP && currClass != ClassCM && currClass != ClassGL && currClass != ClassZW {
+						// BA/B2 × ! (SP|CM|GL|ZW) - break after BA/B2
 						if !(isSoftHyphen && hyphens == HyphensNone) {
 							bytePos := len(string(runes[:i]))
 							breakPoints = append(breakPoints, bytePos)
@@ -758,6 +759,7 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 					// BA/B2 × SP - don't break here; let space create the break
 					// BA/B2 × CM - don't break before combining mark
 					// BA/B2 × GL - don't break before glue
+					// BA/B2 × ZW - don't break before zero-width space (LB8)
 				} else {
 					// HY/CB: Respect hyphens setting
 					if hyphens == HyphensNone {
