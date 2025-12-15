@@ -4387,15 +4387,15 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			continue
 		}
 
-		// LB21: Special handling for HY after CP or CL
-		// Pattern: CP × HY ÷ or CL × HY ÷
-		// Even though CP/CL prohibit breaks before HY, we should allow breaks after HY
+		// LB21: Special handling for HY after CP, CL, or HL
+		// Pattern: CP × HY ÷, CL × HY ÷, or HL × HY ÷
+		// Even though CP/CL/HL prohibit breaks before HY, we should allow breaks after HY
 		if prevClass == ClassHY && i >= 2 {
-			// Look back to see if HY follows CP or CL
+			// Look back to see if HY follows CP, CL, or HL
 			prevPrevRune := runes[i-2]
 			prevPrevClass := getBreakClass(prevPrevRune)
-			if isClassOrVariant(prevPrevClass, ClassCP) || isClassOrVariant(prevPrevClass, ClassCL) {
-				// CP × HY ÷ or CL × HY ÷ - allow break after HY
+			if isClassOrVariant(prevPrevClass, ClassCP) || isClassOrVariant(prevPrevClass, ClassCL) || prevPrevClass == ClassHL {
+				// CP × HY ÷, CL × HY ÷, or HL × HY ÷ - allow break after HY
 				if currClass != ClassSP && currClass != ClassZW && currClass != ClassCM {
 					bytePos := len(string(runes[:i]))
 					breakPoints = append(breakPoints, bytePos)
