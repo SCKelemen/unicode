@@ -280,7 +280,7 @@ func Reorder(text string, baseDir Direction) string {
 	adjustEmptyIsolateFormattingLevels(classes, originalClasses, levels, matchingPDI, paraLevel)
 
 	// Adjust ALL isolate formatting character levels to match surrounding context
-	adjustAllIsolateFormattingLevels(classes, levels, matchingPDI, paraLevel)
+	adjustAllIsolateFormattingLevels(classes, levels, matchingPDI, matchingInitiator, paraLevel)
 
 	// Apply L1: Reset levels for segment/paragraph separators and trailing whitespace
 	applyL1(originalClasses, levels, paraLevel)
@@ -296,8 +296,8 @@ func adjustEmptyIsolateFormattingLevels(classes []BidiClass, originalClasses []B
 
 	for i := 0; i < n; i++ {
 		class := classes[i]
-		// Check if this is an empty isolate initiator
-		if (class == ClassLRI || class == ClassRLI || class == ClassFSI) && matchingPDI[i] != -1 {
+		// Check if this is an empty isolate initiator at paragraph level
+		if (class == ClassLRI || class == ClassRLI || class == ClassFSI) && matchingPDI[i] != -1 && levels[i] == paraLevel {
 			pdiIdx := matchingPDI[i]
 			// Check if it's an empty isolate (no non-removed characters between initiator and PDI)
 			isEmpty := true
@@ -308,7 +308,8 @@ func adjustEmptyIsolateFormattingLevels(classes []BidiClass, originalClasses []B
 				}
 			}
 
-			if isEmpty {
+			// Only adjust empty isolates at paragraph level
+			if isEmpty && levels[pdiIdx] == paraLevel {
 				// Empty isolates take the level based on their surrounding resolved context
 
 				// Find the left context (level, index, and resolved class)
@@ -438,7 +439,7 @@ func adjustEmptyIsolateFormattingLevels(classes []BidiClass, originalClasses []B
 
 // adjustAllIsolateFormattingLevels adjusts ALL isolate formatting characters to match
 // their surrounding resolved context. This applies after empty isolate adjustment.
-func adjustAllIsolateFormattingLevels(classes []BidiClass, levels []int, matchingPDI []int, paraLevel int) {
+func adjustAllIsolateFormattingLevels(classes []BidiClass, levels []int, matchingPDI, matchingInitiator []int, paraLevel int) {
 	n := len(classes)
 
 	for i := 0; i < n; i++ {
@@ -463,13 +464,19 @@ func adjustAllIsolateFormattingLevels(classes []BidiClass, levels []int, matchin
 
 			// Also check if the corresponding PDI is at paragraph level
 			if levels[pdiIdx] == paraLevel {
-				// Find the left context (skip other isolate formatting characters)
+				// Find the left context (skip ENTIRE isolate sequences, not just formatting characters)
 				leftLevel := paraLevel
 				for j := i - 1; j >= 0; j-- {
 					if levels[j] >= 0 {
 						c := classes[j]
-						// Skip isolate formatting characters
-						if c == ClassLRI || c == ClassRLI || c == ClassFSI || c == ClassPDI {
+						// If we hit a PDI, skip backwards to before its matching initiator
+						if c == ClassPDI && matchingInitiator[j] != -1 {
+							initiatorPos := matchingInitiator[j]
+							j = initiatorPos // Will be decremented by loop, so continue from before initiator
+							continue
+						}
+						// Skip other isolate formatting characters
+						if c == ClassLRI || c == ClassRLI || c == ClassFSI {
 							continue
 						}
 						leftLevel = levels[j]
@@ -477,13 +484,19 @@ func adjustAllIsolateFormattingLevels(classes []BidiClass, levels []int, matchin
 					}
 				}
 
-				// Find the right context (skip other isolate formatting characters)
+				// Find the right context (skip ENTIRE isolate sequences, not just formatting characters)
 				rightLevel := paraLevel
 				for j := pdiIdx + 1; j < n; j++ {
 					if levels[j] >= 0 {
 						c := classes[j]
-						// Skip isolate formatting characters
-						if c == ClassLRI || c == ClassRLI || c == ClassFSI || c == ClassPDI {
+						// If we hit an isolate initiator, skip forward to after its matching PDI
+						if (c == ClassLRI || c == ClassRLI || c == ClassFSI) && matchingPDI[j] != -1 {
+							pdiPos := matchingPDI[j]
+							j = pdiPos // Will be incremented by loop, so continue from after PDI
+							continue
+						}
+						// Skip PDI formatting characters
+						if c == ClassPDI {
 							continue
 						}
 						rightLevel = levels[j]
@@ -532,6 +545,8 @@ func processExplicitLevels(classes []BidiClass, levels []int, paraLevel int) {
 	overflowIsolateCount := 0
 	overflowEmbeddingCount := 0
 	validIsolateCount := 0
+	// Stack to save overflowEmbeddingCount when overflow isolates are opened
+	overflowEmbeddingStack := []int{}
 
 	for i := 0; i < n; i++ {
 		class := classes[i]
@@ -558,11 +573,13 @@ func processExplicitLevels(classes []BidiClass, levels []int, paraLevel int) {
 				}
 			}
 
-			if newLevel <= maxDepth && len(stack) < maxDepth {
+			// Check for overflow: if already overflowing, continue overflowing
+			// Otherwise check if new level would exceed limits
+			if overflowEmbeddingCount > 0 || newLevel > maxDepth || len(stack) >= maxDepth {
+				overflowEmbeddingCount++
+			} else {
 				stack = append(stack, embeddingLevel{level: newLevel, override: override, isolate: false})
 				levels[i] = newLevel
-			} else {
-				overflowEmbeddingCount++
 			}
 			// Mark for removal from reordering
 			levels[i] = -1
@@ -633,6 +650,8 @@ func processExplicitLevels(classes []BidiClass, levels []int, paraLevel int) {
 				stack = append(stack, embeddingLevel{level: newLevel, override: -1, isolate: true})
 				levels[i] = currentLevel // Isolate takes current level, not new level
 			} else {
+				// Save current overflowEmbeddingCount when opening overflow isolate
+				overflowEmbeddingStack = append(overflowEmbeddingStack, overflowEmbeddingCount)
 				overflowIsolateCount++
 				levels[i] = currentLevel
 			}
@@ -642,6 +661,12 @@ func processExplicitLevels(classes []BidiClass, levels []int, paraLevel int) {
 			matched := false
 			if overflowIsolateCount > 0 {
 				overflowIsolateCount--
+				// Restore overflowEmbeddingCount to the value before the overflow isolate
+				// This discards overflow embeddings that happened inside the isolate
+				if len(overflowEmbeddingStack) > 0 {
+					overflowEmbeddingCount = overflowEmbeddingStack[len(overflowEmbeddingStack)-1]
+					overflowEmbeddingStack = overflowEmbeddingStack[:len(overflowEmbeddingStack)-1]
+				}
 				matched = true
 			} else if validIsolateCount > 0 {
 				overflowEmbeddingCount = 0

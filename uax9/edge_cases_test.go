@@ -151,7 +151,7 @@ func TestSeparatorEdgeCases(t *testing.T) {
 			name:           "AN ES AN - ES between two AN",
 			classes:        []BidiClass{ClassAN, ClassES, ClassAN},
 			paraLevel:      0,
-			expectedLevels: []int{2, 2, 2},
+			expectedLevels: []int{2, 1, 2}, // ES becomes ON per W6, then resolves to level 1
 		},
 		{
 			name:           "AN CS R - CS between AN and R",

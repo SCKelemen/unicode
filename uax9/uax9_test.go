@@ -27,7 +27,7 @@ func TestReorder(t *testing.T) {
 			name:     "Hebrew RTL",
 			input:    "\u05E9\u05DC\u05D5\u05DD", // שלום (shalom)
 			dir:      DirectionRTL,
-			expected: "\u05E9\u05DC\u05D5\u05DD",
+			expected: "\u05DD\u05D5\u05DC\u05E9", // Reversed for visual display (RTL at level 1)
 		},
 		{
 			name:     "Mixed LTR and RTL",
