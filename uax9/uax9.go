@@ -349,8 +349,9 @@ func processExplicitLevels(classes []BidiClass, levels []int, paraLevel int) {
 					}
 
 					// Look for strong types at same isolate level
+					// Note: EN and AN are weak types, not strong for FSI determination
 					if isolateDepth == 0 {
-						if c == ClassL || c == ClassEN {
+						if c == ClassL {
 							isolateClass = ClassLRI
 							foundStrong = true
 							break
