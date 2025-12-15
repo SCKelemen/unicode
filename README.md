@@ -49,17 +49,75 @@ if uax50.IsUpright('A') {
 }
 ```
 
+### [uax11](./uax11) - East Asian Width
+
+Implementation of UAX #11 (East Asian Width) for determining character display width in East Asian typography contexts.
+
+Supports:
+- East Asian Width property lookup (Ambiguous, Fullwidth, Halfwidth, Narrow, Neutral, Wide)
+- Context-based width resolution for ambiguous characters
+- Character and string display width calculation
+- Terminal emulator and monospace font support
+- Complete Unicode 17.0.0 data
+
+```go
+import "github.com/SCKelemen/unicode/uax11"
+
+// Determine character width
+width := uax11.LookupWidth('中')  // Returns Wide
+if uax11.IsWide('A') {
+    // Character occupies 2 units
+}
+
+// Calculate string display width
+width := uax11.StringWidth("Hello世界", uax11.ContextNarrow)  // Returns 9
+```
+
+### [uax29](./uax29) - Text Segmentation
+
+Implementation of UAX #29 (Unicode Text Segmentation) for breaking text into grapheme clusters, words, and sentences.
+
+**Status:** Complete with 100% conformance on all official Unicode tests
+
+Supports:
+- **Grapheme cluster boundaries** (100.0% - 766/766 tests)
+  - User-perceived characters, emoji sequences, combining marks
+  - Hangul syllable composition
+  - Regional indicator pairs (flag emojis)
+  - Indic conjunct sequences for 10+ scripts
+
+- **Word boundaries** (100.0% - 1944/1944 tests)
+  - Alphabetic and numeric sequences
+  - Contractions, punctuation, hyphenated words
+  - Hebrew letter handling, Katakana sequences
+  - Emoji modifiers and ZWJ sequences
+
+- **Sentence boundaries** (100.0% - 512/512 tests)
+  - Period, question mark, exclamation handling
+  - Abbreviation detection, quote and parenthesis handling
+  - Multi-script sentence terminators
+
+```go
+import "github.com/SCKelemen/unicode/uax29"
+
+// Grapheme clusters
+graphemes := uax29.Graphemes("👨‍👩‍👧‍👦")  // Returns ["👨‍👩‍👧‍👦"]
+
+// Words
+words := uax29.Words("Hello, world!")  // Returns ["Hello", ",", " ", "world", "!"]
+
+// Sentences
+sentences := uax29.Sentences("Hello. World!")  // Returns ["Hello. ", "World!"]
+```
+
 ### uax9 - Bidirectional Algorithm
 
 *(Coming soon)* Implementation of UAX #9 for handling bidirectional text (e.g., mixing Latin and Arabic/Hebrew scripts).
 
-### uax29 - Text Segmentation
-
-*(Coming soon)* Implementation of UAX #29 for grapheme cluster, word, and sentence boundary detection.
-
 ## Installation
 
 ```bash
+go get github.com/SCKelemen/unicode/uax11
 go get github.com/SCKelemen/unicode/uax14
 go get github.com/SCKelemen/unicode/uax50
 ```
@@ -80,6 +138,7 @@ These implementations focus on practical text layout and rendering needs:
 ## References
 
 - [Unicode Standard Annexes](https://www.unicode.org/reports/)
+- [UAX #11: East Asian Width](https://www.unicode.org/reports/tr11/)
 - [UAX #14: Line Breaking](https://www.unicode.org/reports/tr14/)
 - [UAX #50: Vertical Text Layout](https://www.unicode.org/reports/tr50/)
 - [UAX #9: Bidirectional Algorithm](https://www.unicode.org/reports/tr9/)
