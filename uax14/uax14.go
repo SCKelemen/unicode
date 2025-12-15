@@ -4361,12 +4361,23 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			// But respect LB6, LB13, LB14
 			if prevClass == ClassSP {
 				// LB18: Break after spaces (word boundaries)
-				// LB14: Do not break after OP, even if spaces intervene (OP SP* ×)
-				// LB16: Do not break between CL/CP and NS/CJ, even with spaces ((CL | CP) SP* × (NS | CJ))
-				// LB17: Do not break within "—", even with intervening spaces (B2 SP* B2)
-				// LB19: QU has context-specific rules (after AL/HL), handled by pair table
-				if isClassOrVariant(lastNonSpaceClass, ClassOP) || isClassOrVariant(lastNonSpaceClass, ClassQU) {
-					// Don't break - we're in "OP SP*" or "QU SP*" sequence
+				// But respect LB9, LB10, LB14, LB15a, LB16, LB17
+				// LB9: Do not break before CM (combining marks attach to base)
+				// LB10: CM after space/break is treated as AL (isolated, no base to attach to)
+				// If previous rune is CM, check if it's isolated (after space) or attaching
+				prevRune := runes[i-1]
+				prevRuneClass := getBreakClass(prevRune)
+				isIsolatedCM := false
+				if (isClassOrVariant(prevRuneClass, ClassCM) || prevRuneClass == ClassZWJ) && i >= 2 {
+					// Check if CM is isolated (appears after space or start)
+					prevPrevRune := runes[i-2]
+					prevPrevClass := getBreakClass(prevPrevRune)
+					isIsolatedCM = prevPrevClass == ClassSP
+				}
+				if (isClassOrVariant(prevRuneClass, ClassCM) || prevRuneClass == ClassZWJ) && !isIsolatedCM {
+					// Previous character is CM/ZWJ with a base - don't break (it attaches to current char per LB9)
+				} else if isClassOrVariant(lastNonSpaceClass, ClassOP) || lastNonSpaceClass == ClassQU_Pi {
+					// Don't break - we're in "OP SP*" or "QU_Pi SP*" sequence
 				} else if (isClassOrVariant(lastNonSpaceClass, ClassCL) || lastNonSpaceClass == ClassCP) &&
 					(isClassOrVariant(currClass, ClassNS) || currClass == ClassCJ) {
 					// LB16: Don't break in "(CL | CP) SP* × (NS | CJ)" sequence
@@ -4423,30 +4434,43 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 					// BA/B2 × CM - don't break before combining mark
 					// BA/B2 × ZW - don't break before zero-width space (LB8)
 				} else {
-					// HY/CB: Respect hyphens setting
-					if hyphens == HyphensNone {
-						// Don't break at any hyphens
-					} else if hyphens == HyphensManual && isSoftHyphen {
-						// Only break at soft hyphens in manual mode
-						bytePos := len(string(runes[:i]))
-						breakPoints = append(breakPoints, bytePos)
-					} else if hyphens == HyphensManual && !isSoftHyphen {
-						// Don't break at hard hyphens in manual mode
-					} else if hyphens == HyphensAuto {
-						// Break at all hyphens in auto mode
-						bytePos := len(string(runes[:i]))
-						breakPoints = append(breakPoints, bytePos)
+					// HY: Respect hyphens setting for soft hyphens only
+					// Hard hyphens (U+002D) follow pair table
+					// Soft hyphens (U+00AD) are controlled by hyphens property
+					if isSoftHyphen {
+						// Soft hyphen: controlled by hyphens property
+						if hyphens == HyphensManual || hyphens == HyphensAuto {
+							bytePos := len(string(runes[:i]))
+							breakPoints = append(breakPoints, bytePos)
+						}
+						// HyphensNone: don't break at soft hyphen
+					} else {
+						// Hard hyphen: follow pair table (BreakDirect = break)
+						if currClass != ClassSP && currClass != ClassZW && currClass != ClassCM {
+							bytePos := len(string(runes[:i]))
+							breakPoints = append(breakPoints, bytePos)
+						}
 					}
 				}
 			} else if prevClass == ClassSP {
 				// LB18: Break after spaces (word boundaries)
-				// But respect LB6, LB7, LB11, LB13, LB14, LB16, LB17
-				// LB14: Do not break after OP, even if spaces intervene (OP SP* ×)
-				// LB16: Do not break between CL/CP and NS/CJ, even with spaces ((CL | CP) SP* × (NS | CJ))
-				// LB17: Do not break within "—", even with intervening spaces (B2 SP* B2)
-				// LB19: QU has context-specific rules (after AL/HL), handled by pair table
-				if isClassOrVariant(lastNonSpaceClass, ClassOP) || isClassOrVariant(lastNonSpaceClass, ClassQU) {
-					// Don't break - we're in "OP SP*" or "QU SP*" sequence
+				// But respect LB6, LB7, LB9, LB10, LB11, LB13, LB14, LB15a, LB16, LB17
+				// LB9: Do not break before CM (combining marks attach to base)
+				// LB10: CM after space/break is treated as AL (isolated, no base to attach to)
+				// If previous rune is CM, check if it's isolated (after space) or attaching
+				prevRune := runes[i-1]
+				prevRuneClass := getBreakClass(prevRune)
+				isIsolatedCM := false
+				if (isClassOrVariant(prevRuneClass, ClassCM) || prevRuneClass == ClassZWJ) && i >= 2 {
+					// Check if CM is isolated (appears after space or start)
+					prevPrevRune := runes[i-2]
+					prevPrevClass := getBreakClass(prevPrevRune)
+					isIsolatedCM = prevPrevClass == ClassSP
+				}
+				if (isClassOrVariant(prevRuneClass, ClassCM) || prevRuneClass == ClassZWJ) && !isIsolatedCM {
+					// Previous character is CM/ZWJ with a base - don't break (it attaches to current char per LB9)
+				} else if isClassOrVariant(lastNonSpaceClass, ClassOP) || lastNonSpaceClass == ClassQU_Pi {
+					// Don't break - we're in "OP SP*" or "QU_Pi SP*" sequence
 				} else if (isClassOrVariant(lastNonSpaceClass, ClassCL) || lastNonSpaceClass == ClassCP) &&
 					(isClassOrVariant(currClass, ClassNS) || currClass == ClassCJ) {
 					// LB16: Don't break in "(CL | CP) SP* × (NS | CJ)" sequence
