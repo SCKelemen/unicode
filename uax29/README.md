@@ -91,10 +91,17 @@ sentences := uax29.Sentences(text)
 // Returns: ["Hello Dr. Smith. ", "How are you?"]
 ```
 
-## Relationship to Other UAX
+## Dependencies
 
+This package depends on:
+- **UTS #51 (Unicode Emoji)**: Provides authoritative emoji property data (Extended_Pictographic, Regional_Indicator, Emoji_Modifier, ZeroWidthJoiner constant)
+
+## Integration with Other Standards
+
+- **UTS #51 (Unicode Emoji)**: Emoji sequences are treated as single grapheme clusters per UAX #29 GB11
 - **UAX #14 (Line Breaking)**: UAX #29 word boundaries inform line break decisions
 - **UAX #9 (Bidirectional)**: Both needed for proper text layout
+- **UAX #11 (East Asian Width)**: Terminal cursor movement should respect grapheme boundaries
 
 ## References
 

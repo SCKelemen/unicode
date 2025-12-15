@@ -1,6 +1,10 @@
 package uax29
 
-import "unicode"
+import (
+	"unicode"
+
+	"github.com/SCKelemen/unicode/uts51"
+)
 
 // SentenceBreakClass represents the Sentence_Break property values defined in UAX #29.
 //
@@ -163,12 +167,12 @@ func getSentenceBreakClass(r rune) SentenceBreakClass {
 	}
 
 	// Format
-	if unicode.Is(unicode.Cf, r) && r != 0x200C && r != 0x200D {
+	if unicode.Is(unicode.Cf, r) && r != 0x200C && r != uts51.ZeroWidthJoiner {
 		return SBFormat
 	}
 
 	// Extend
-	if unicode.Is(unicode.Me, r) || unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Mc, r) || r == 0x200D {
+	if unicode.Is(unicode.Me, r) || unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Mc, r) || r == uts51.ZeroWidthJoiner {
 		return SBExtend
 	}
 

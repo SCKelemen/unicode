@@ -1,6 +1,10 @@
 package uax29
 
-import "unicode"
+import (
+	"unicode"
+
+	"github.com/SCKelemen/unicode/uts51"
+)
 
 // GraphemeBreakClass represents the Grapheme_Cluster_Break property values
 // defined in UAX #29.
@@ -97,12 +101,12 @@ func getGraphemeBreakClass(r rune) GraphemeBreakClass {
 	}
 
 	// ZWJ
-	if r == 0x200D {
+	if r == uts51.ZeroWidthJoiner {
 		return GBZWJ
 	}
 
 	// Regional Indicators (U+1F1E6..U+1F1FF)
-	if r >= 0x1F1E6 && r <= 0x1F1FF {
+	if uts51.IsRegionalIndicator(r) {
 		return GBRegionalIndicator
 	}
 
@@ -162,7 +166,7 @@ func getGraphemeBreakClass(r rune) GraphemeBreakClass {
 	}
 
 	// Emoji modifiers (skin tones) are Extend (must check before ExtendedPictographic)
-	if r >= 0x1F3FB && r <= 0x1F3FF {
+	if uts51.IsEmojiModifier(r) {
 		return GBExtend
 	}
 
@@ -191,60 +195,11 @@ func getGraphemeBreakClass(r rune) GraphemeBreakClass {
 	return GBOther
 }
 
-// isExtendedPictographic checks if a rune is an extended pictographic character
-// This is a simplified version - a complete implementation would use Unicode data files
+// isExtendedPictographic checks if a rune is an extended pictographic character.
+// This uses the authoritative implementation from UTS #51.
+// See UTS #51 §1.4: https://www.unicode.org/reports/tr51/#Emoji_Properties
 func isExtendedPictographic(r rune) bool {
-	// Emoji modifiers (skin tones) are NOT ExtendedPictographic, they are Extend
-	if r >= 0x1F3FB && r <= 0x1F3FF {
-		return false
-	}
-	// Copyright, registered, trade mark
-	if r == 0x00A9 || r == 0x00AE {
-		return true
-	}
-	// Misc text symbols
-	if r >= 0x203C && r <= 0x3299 {
-		// Specific ExtPict ranges within this broader range
-		if (r >= 0x203C && r <= 0x2049) || // ‼️, ⁉️
-			(r >= 0x2122 && r <= 0x2139) || // ™️, ℹ️
-			(r >= 0x2194 && r <= 0x21AA) || // Arrows
-			(r >= 0x231A && r <= 0x231B) || // Watches
-			r == 0x2328 || // Keyboard
-			r == 0x23CF || // Eject
-			(r >= 0x23E9 && r <= 0x23F3) || // Media controls
-			(r >= 0x23F8 && r <= 0x23FA) || // Pause, play
-			r == 0x24C2 || // Ⓜ️
-			(r >= 0x25AA && r <= 0x25FE) || // Squares
-			(r >= 0x2600 && r <= 0x27BF && !(r >= 0x2700 && r <= 0x2704)) || // Misc symbols (except scissors)
-			(r >= 0x2934 && r <= 0x2935) || // Arrows
-			(r >= 0x2B00 && r <= 0x2BFF) || // Misc symbols and arrows
-			r == 0x3030 || r == 0x303D || // Wavy dash, part alternation
-			r == 0x3297 || r == 0x3299 { // Circled ideographs
-			return true
-		}
-		return false
-	}
-	// Common emoji ranges (excluding modifiers)
-	if r >= 0x1F300 && r <= 0x1F5FF {
-		return true
-	}
-	if r >= 0x1F600 && r <= 0x1F64F {
-		return true
-	}
-	if r >= 0x1F680 && r <= 0x1F6FF {
-		return true
-	}
-	if r >= 0x1F900 && r <= 0x1F9FF {
-		return true
-	}
-	// Misc Symbols (sparse - only some are ExtPict)
-	if r >= 0x1F000 && r <= 0x1F02F {
-		return true
-	}
-	if r >= 0x1FA00 && r <= 0x1FAFF {
-		return true
-	}
-	return false
+	return uts51.IsExtendedPictographic(r)
 }
 
 // isIndicConjunctLinker checks if a rune has InCB=Linker property (virama, etc.)

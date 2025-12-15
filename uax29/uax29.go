@@ -110,6 +110,17 @@
 //   - SB9-SB10: Close and space sequences
 //   - SB11: Breaking after terminal sequences
 //
+// # Dependencies
+//
+// This package depends on UTS #51 (Unicode Emoji) for authoritative emoji property data:
+//   - Extended_Pictographic property for emoji detection (GB11)
+//   - Regional_Indicator property for flag emoji sequences (GB12/GB13)
+//   - Emoji_Modifier property for skin tone handling (GB9)
+//   - ZeroWidthJoiner constant for ZWJ sequences (GB11)
+//
+// Using UTS #51 ensures consistency across all Unicode implementations in this module
+// and provides complete, data-driven emoji support.
+//
 // # Conformance
 //
 // This implementation conforms to Unicode 17.0 and passes all official conformance

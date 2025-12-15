@@ -1,6 +1,10 @@
 package uax29
 
-import "unicode"
+import (
+	"unicode"
+
+	"github.com/SCKelemen/unicode/uts51"
+)
 
 // WordBreakClass represents the Word_Break property values defined in UAX #29.
 //
@@ -124,12 +128,12 @@ func getWordBreakClass(r rune) WordBreakClass {
 	}
 
 	// ZWJ
-	if r == 0x200D {
+	if r == uts51.ZeroWidthJoiner {
 		return WBZWJ
 	}
 
 	// Regional Indicators
-	if r >= 0x1F1E6 && r <= 0x1F1FF {
+	if uts51.IsRegionalIndicator(r) {
 		return WBRegionalIndicator
 	}
 
@@ -175,7 +179,7 @@ func getWordBreakClass(r rune) WordBreakClass {
 	}
 
 	// Emoji modifiers (skin tones) are Extend for word breaking
-	if r >= 0x1F3FB && r <= 0x1F3FF {
+	if uts51.IsEmojiModifier(r) {
 		return WBExtend
 	}
 
@@ -190,7 +194,7 @@ func getWordBreakClass(r rune) WordBreakClass {
 	}
 
 	// Format
-	if unicode.Is(unicode.Cf, r) && r != 0x200C && r != 0x200D {
+	if unicode.Is(unicode.Cf, r) && r != 0x200C && r != uts51.ZeroWidthJoiner {
 		return WBFormat
 	}
 
