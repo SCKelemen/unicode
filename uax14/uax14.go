@@ -4358,10 +4358,14 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			if prevClass == ClassSP {
 				// LB18: Break after spaces (word boundaries)
 				// LB14: Do not break after OP, even if spaces intervene (OP SP* ×)
+				// LB16: Do not break between CL/CP and NS, even with spaces ((CL | CP) SP* × NS)
 				// LB17: Do not break within "—", even with intervening spaces (B2 SP* B2)
 				// LB19: QU has context-specific rules (after AL/HL), handled by pair table
 				if isClassOrVariant(lastNonSpaceClass, ClassOP) || isClassOrVariant(lastNonSpaceClass, ClassQU) {
 					// Don't break - we're in "OP SP*" or "QU SP*" sequence
+				} else if (isClassOrVariant(lastNonSpaceClass, ClassCL) || lastNonSpaceClass == ClassCP) &&
+					isClassOrVariant(currClass, ClassNS) {
+					// LB16: Don't break in "(CL | CP) SP* × NS" sequence
 				} else if lastNonSpaceClass == ClassB2 && currClass == ClassB2 {
 					// LB17: Don't break within "B2 SP* B2" (dashes with spaces)
 				} else if currClass == ClassBK || currClass == ClassCR || currClass == ClassLF ||
@@ -4432,12 +4436,16 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 				}
 			} else if prevClass == ClassSP {
 				// LB18: Break after spaces (word boundaries)
-				// But respect LB6, LB7, LB11, LB13, LB14, LB17
+				// But respect LB6, LB7, LB11, LB13, LB14, LB16, LB17
 				// LB14: Do not break after OP, even if spaces intervene (OP SP* ×)
+				// LB16: Do not break between CL/CP and NS, even with spaces ((CL | CP) SP* × NS)
 				// LB17: Do not break within "—", even with intervening spaces (B2 SP* B2)
 				// LB19: QU has context-specific rules (after AL/HL), handled by pair table
 				if isClassOrVariant(lastNonSpaceClass, ClassOP) || isClassOrVariant(lastNonSpaceClass, ClassQU) {
 					// Don't break - we're in "OP SP*" or "QU SP*" sequence
+				} else if (isClassOrVariant(lastNonSpaceClass, ClassCL) || lastNonSpaceClass == ClassCP) &&
+					isClassOrVariant(currClass, ClassNS) {
+					// LB16: Don't break in "(CL | CP) SP* × NS" sequence
 				} else if lastNonSpaceClass == ClassB2 && currClass == ClassB2 {
 					// LB17: Don't break within "B2 SP* B2" (dashes with spaces)
 				} else if currClass == ClassBK || currClass == ClassCR || currClass == ClassLF ||
