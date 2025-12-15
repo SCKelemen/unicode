@@ -361,6 +361,12 @@ var pairTable = map[[2]BreakClass]BreakAction{
 	{ClassBK, ClassXX}: BreakMandatory,
 	{ClassNL, ClassXX}: BreakMandatory,
 
+	// LB6: Do not break before hard line breaks
+	{ClassXX, ClassBK}: BreakProhibited,
+	{ClassXX, ClassCR}: BreakProhibited,
+	{ClassXX, ClassLF}: BreakProhibited,
+	{ClassXX, ClassNL}: BreakProhibited,
+
 	// Space
 	{ClassSP, ClassXX}: BreakIndirect,
 	{ClassXX, ClassSP}: BreakProhibited,
@@ -370,10 +376,14 @@ var pairTable = map[[2]BreakClass]BreakAction{
 	{ClassXX, ClassWJ}: BreakProhibited,
 	{ClassZW, ClassXX}: BreakDirect, // Zero Width Space allows break
 
-	// Break after
+	// Break after (LB21a)
 	{ClassBA, ClassXX}: BreakDirect,
 	{ClassHY, ClassXX}: BreakDirect,
 	{ClassSY, ClassXX}: BreakDirect,
+
+	// LB21: Do not break before hyphen-minus, other hyphens, or BA
+	{ClassXX, ClassBA}: BreakProhibited,
+	{ClassXX, ClassHY}: BreakProhibited,
 
 	// Break before
 	{ClassXX, ClassBB}: BreakDirect,
@@ -386,18 +396,37 @@ var pairTable = map[[2]BreakClass]BreakAction{
 	{ClassCB, ClassXX}: BreakDirect,
 
 	// Punctuation
+	// LB14: Do not break after OP (implemented in code with SP handling)
 	{ClassOP, ClassXX}: BreakProhibited,
 	{ClassQU, ClassXX}: BreakProhibited,
 	{ClassGL, ClassXX}: BreakProhibited,
-	{ClassXX, ClassOP}: BreakProhibited,
+	// Note: CAN break before OP (removed incorrect {ClassXX, ClassOP} rule)
 	{ClassXX, ClassQU}: BreakProhibited,
 	{ClassXX, ClassGL}: BreakProhibited,
 
-	// Close punctuation
+	// Close punctuation (LB13)
 	{ClassCL, ClassXX}: BreakProhibited,
 	{ClassCP, ClassXX}: BreakProhibited,
 	{ClassXX, ClassCL}: BreakProhibited,
 	{ClassXX, ClassCP}: BreakProhibited,
+
+	// LB13: Do not break before EX, IS, SY
+	{ClassXX, ClassEX}: BreakProhibited,
+	{ClassXX, ClassIS}: BreakProhibited,
+	{ClassXX, ClassSY}: BreakProhibited,
+
+	// LB16: Do not break before NS (nonstarters)
+	{ClassXX, ClassNS}: BreakProhibited,
+
+	// LB11: Do not break before or after Word Joiner and related characters
+	// (Already have WJ rules above)
+
+	// LB12: Do not break after GL (non-breaking "glue")
+	{ClassGL, ClassXX}: BreakProhibited,
+
+	// IN (Inseparable) - don't break before or after
+	{ClassXX, ClassIN}: BreakProhibited,
+	{ClassIN, ClassXX}: BreakProhibited,
 
 	// Numeric (LB23, LB24, LB25)
 	{ClassNU, ClassNU}: BreakProhibited,
