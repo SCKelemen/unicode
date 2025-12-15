@@ -2,7 +2,7 @@
 
 Implementation of [UAX #9: Unicode Bidirectional Algorithm](https://www.unicode.org/reports/tr9/) in Go.
 
-**Status:** Highly Conformant (99.995% pass rate on official Unicode test vectors with full isolating run sequences)
+**Status:** Highly Conformant (99.997% pass rate on official Unicode test vectors with full isolating run sequences)
 
 ## Overview
 
@@ -70,9 +70,9 @@ go test -v
 ### Test Results
 
 - **Total tests**: 513,494
-- **Passed**: 513,469
-- **Pass rate**: 99.995%
-- **Failed**: 25 (empty isolate formatting characters with weak/strong type interactions)
+- **Passed**: 513,479
+- **Pass rate**: 99.997%
+- **Failed**: 15 (complex isolate formatting and deep embedding edge cases)
 
 The test suite includes:
 - Official Unicode BidiTest.txt (513,494 test cases)
@@ -81,13 +81,15 @@ The test suite includes:
 
 ## Known Limitations
 
-- 0.005% of edge cases fail (25 out of 513,494 tests)
-- All failures involve empty isolate sequences with specific weak/strong type interactions:
-  - Pattern: `EN LRI PDI L` or `AN LRI PDI AN` where empty isolates need nuanced level assignment
-  - Affects interactions between numbers (EN, AN) and strong types (L, R, AL) in certain contexts
-  - The level assignment for empty isolates with mixed weak/strong types requires additional refinement
+- 0.003% of edge cases fail (15 out of 513,494 tests)
+- All failures involve two rare edge case categories:
+  1. **Non-empty isolate formatting characters** (5 failures): Multiple consecutive isolates where formatting characters (FSI/LRI/RLI/PDI) don't inherit surrounding context levels
+     - Pattern: `R ON FSI L PDI LRI L PDI RLI L PDI ON R` where isolate formatting chars should match surrounding RTL context
+  2. **Deep embedding nesting** (10 failures): Extreme nesting of explicit embeddings (30-64 levels deep)
+     - Pattern: 30+ consecutive LRE/LRO/RLE/RLO characters with complex interactions
+     - Off-by-one errors in level calculation at extreme depths near the 125 level maximum
 
-The implementation uses full isolating run sequences (BD13) as specified in UAX#9 and is production-ready, handling 99.995% of Unicode's comprehensive test cases including all common real-world bidirectional text scenarios. The remaining 25 failures are rare edge cases involving specific combinations of weak and strong bidirectional types around empty isolate formatting characters.
+The implementation uses full isolating run sequences (BD13) as specified in UAX#9 and is production-ready, handling 99.997% of Unicode's comprehensive test cases including all common real-world bidirectional text scenarios. The remaining 15 failures are extremely rare edge cases that would require architectural changes to the explicit level processing for isolate formatting characters.
 
 ## Implementation Details
 
