@@ -4387,23 +4387,27 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			continue
 		}
 
-		// LB21: Special handling for HY after CP, CL, or HL
-		// Pattern: CP × HY ÷, CL × HY ÷, or HL × HY ÷
-		// Also: HY × HY ÷ AL after CP/CL (punycode/domain names like "xn--a")
-		// Even though CP/CL/HL prohibit breaks before HY, we should allow breaks after HY
+		// LB21: Special handling for HY (hyphen-minus)
+		// HY generally allows breaks after it, with specific exceptions
+		// Patterns: AL × HY ÷ AL, CP × HY ÷, CL × HY ÷, HL × HY ÷ HL
 		if prevClass == ClassHY && i >= 2 {
-			// Look back to see if HY follows CP, CL, or HL
+			// Check what comes before the HY
 			prevPrevRune := runes[i-2]
 			prevPrevClass := getBreakClass(prevPrevRune)
 			shouldBreak := false
 
-			if isClassOrVariant(prevPrevClass, ClassCP) || isClassOrVariant(prevPrevClass, ClassCL) || prevPrevClass == ClassHL {
-				// CP × HY ÷, CL × HY ÷, or HL × HY ÷ - allow break after HY
+			if isClassOrVariant(prevPrevClass, ClassCP) || isClassOrVariant(prevPrevClass, ClassCL) {
+				// CP × HY ÷, CL × HY ÷ - allow break after HY
+				shouldBreak = true
+			} else if prevPrevClass == ClassHL && currClass == ClassHL {
+				// HL × HY ÷ HL (Hebrew letter, hyphen, Hebrew letter) - allow break after HY
+				shouldBreak = true
+			} else if isClassOrVariant(prevPrevClass, ClassAL) && isClassOrVariant(currClass, ClassAL) {
+				// AL × HY ÷ AL - regular hyphenated words like "Excusez-moi"
 				shouldBreak = true
 			} else if prevPrevClass == ClassHY && isClassOrVariant(currClass, ClassAL) {
 				// HY × HY ÷ AL - check if this follows CP/CL in the context
 				// Pattern: CP/CL × ... × AL × HY × HY ÷ AL (like "(http://)xn--a" or "{http://}xn--a")
-				// Look back past the double hyphen and any AL to find CP/CL
 				checkIdx := i - 3
 				for checkIdx >= 0 {
 					checkRune := runes[checkIdx]
@@ -4432,6 +4436,177 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			}
 		}
 
+		// LB21.02: Special handling for HH (Hebrew hyphen/MAQAF)
+		// HL × HH ÷ HL - Allow break after HH when preceded by HL or AL
+		if prevClass == ClassHH && currClass == ClassHL && i >= 2 {
+			// Check if HH is preceded by HL or AL (not at start of text)
+			prevPrevIdx := i - 2
+			foundPreceding := false
+			for prevPrevIdx >= 0 {
+				prevPrevRune := runes[prevPrevIdx]
+				prevPrevClass := getBreakClass(prevPrevRune)
+				// Skip combining marks
+				if isClassOrVariant(prevPrevClass, ClassCM) || prevPrevClass == ClassZWJ {
+					prevPrevIdx--
+					continue
+				}
+				// If HH is preceded by HL or AL, allow break
+				if prevPrevClass == ClassHL || isClassOrVariant(prevPrevClass, ClassAL) {
+					foundPreceding = true
+				}
+				break
+			}
+
+			if foundPreceding && currClass != ClassSP && currClass != ClassZW && currClass != ClassCM {
+				bytePos := len(string(runes[:i]))
+				breakPoints = append(breakPoints, bytePos)
+				prevClass = currClass
+				if currClass != ClassSP {
+					lastNonSpaceClass = currClass
+				}
+				continue
+			}
+		}
+
+		// LB19: Quotation marks with context-sensitive breaking
+		// Handle multiple patterns:
+		// 1. CP/CL/EX/IS/SY × SP ÷ QU_Pf - Break before closing quote after punctuation
+		// 2. QU_Pi × SP ÷ OP - Break after opening quote before opening punctuation (when quote is closed)
+		// 3. NS ÷ QU_Pi - Break before opening quote after non-starter (CJK text)
+
+		// Pattern 3: FULLWIDTH COLON ÷ QU_Pi (CJK: break after FULLWIDTH COLON before opening quote)
+		if isClassOrVariant(prevClass, ClassNS) && isClassOrVariant(currClass, ClassQU_Pi) && i > 0 {
+			// Only apply to FULLWIDTH COLON (U+FF1A), not all NS characters
+			prevRune := runes[i-1]
+			if prevRune == '\uFF1A' { // FULLWIDTH COLON
+				// Allow break after FULLWIDTH COLON before opening quote
+				bytePos := len(string(runes[:i]))
+				breakPoints = append(breakPoints, bytePos)
+				prevClass = currClass
+				if currClass != ClassSP {
+					lastNonSpaceClass = currClass
+				}
+				continue
+			}
+		}
+
+		if prevClass == ClassSP {
+			// Pattern 1: SP ÷ QU_Pf after CP/CL/EX/IS/SY
+			if isClassOrVariant(currClass, ClassQU_Pf) {
+				// IS/SY are natural phrase boundaries - allow break only if they're OUTSIDE the quote
+				if lastNonSpaceClass == ClassIS || lastNonSpaceClass == ClassSY {
+					// Look back to find opening quote and IS/SY position
+					openingQuoteIdx := -1
+					isSyIdx := -1
+
+					// Find the IS/SY position (should be immediately before SP)
+					for checkIdx := i - 2; checkIdx >= 0; checkIdx-- {
+						checkClass := getBreakClass(runes[checkIdx])
+						if checkClass == ClassIS || checkClass == ClassSY {
+							isSyIdx = checkIdx
+							break
+						}
+						if checkClass != ClassSP && checkClass != ClassCM && checkClass != ClassZWJ {
+							break
+						}
+					}
+
+					// Find the opening quote position
+					for checkIdx := i - 2; checkIdx >= 0; checkIdx-- {
+						checkClass := getBreakClass(runes[checkIdx])
+						if isClassOrVariant(checkClass, ClassQU_Pi) {
+							openingQuoteIdx = checkIdx
+							break
+						}
+					}
+
+					// Allow break if:
+					// 1. IS/SY is BEFORE the opening quote (outside the quoted region), OR
+					// 2. No opening quote found AND IS/SY is very recent (within 3 runes)
+					//    AND IS/SY has context before it (not at start of text)
+					//    This handles cases where QU_Pf starts a quotation (European typography)
+					shouldBreakIsSy := false
+					if isSyIdx >= 0 {
+						if openingQuoteIdx >= 0 && isSyIdx < openingQuoteIdx {
+							// IS/SY is before opening quote - definitely outside
+							shouldBreakIsSy = true
+						} else if openingQuoteIdx == -1 && (i - isSyIdx) <= 3 && isSyIdx > 0 {
+							// No opening quote, IS/SY is very recent, and has context before it
+							// Pattern: "text: »quote" (European typography starting quotation)
+							shouldBreakIsSy = true
+						}
+					}
+
+					if shouldBreakIsSy {
+						bytePos := len(string(runes[:i]))
+						breakPoints = append(breakPoints, bytePos)
+						prevClass = currClass
+						if currClass != ClassSP {
+							lastNonSpaceClass = currClass
+						}
+						continue
+					}
+				}
+				// For CP/CL/EX, require opening quote with OP/CL content (stricter check)
+				if isClassOrVariant(lastNonSpaceClass, ClassCP) ||
+				   isClassOrVariant(lastNonSpaceClass, ClassCL) ||
+				   isClassOrVariant(lastNonSpaceClass, ClassEX) {
+					// Look back to find a matching opening quote with OP/CL content between
+					hasMatchingQuote := false
+					hasOpenParen := false
+					for checkIdx := i - 2; checkIdx >= 0; checkIdx-- {
+						checkClass := getBreakClass(runes[checkIdx])
+						if isClassOrVariant(checkClass, ClassQU_Pi) {
+							if hasOpenParen {
+								hasMatchingQuote = true
+							}
+							break
+						}
+						if isClassOrVariant(checkClass, ClassOP) || isClassOrVariant(checkClass, ClassCL) {
+							hasOpenParen = true
+						}
+					}
+					if hasMatchingQuote {
+						bytePos := len(string(runes[:i]))
+						breakPoints = append(breakPoints, bytePos)
+						prevClass = currClass
+						if currClass != ClassSP {
+							lastNonSpaceClass = currClass
+						}
+						continue
+					}
+				}
+			}
+			// Pattern 2: SP ÷ OP after QU_Pi with closing quote ahead
+			if isClassOrVariant(currClass, ClassOP) && isClassOrVariant(lastNonSpaceClass, ClassQU_Pi) {
+				// Look ahead to see if there's a closing quote with content between
+				hasClosingQuote := false
+				hasClosingParen := false
+				for checkIdx := i + 1; checkIdx < len(runes); checkIdx++ {
+					checkClass := getBreakClass(runes[checkIdx])
+					if isClassOrVariant(checkClass, ClassQU_Pf) {
+						// Found closing quote - allow break if there's CP/CL in between
+						if hasClosingParen {
+							hasClosingQuote = true
+						}
+						break
+					}
+					if isClassOrVariant(checkClass, ClassCP) || isClassOrVariant(checkClass, ClassCL) {
+						hasClosingParen = true
+					}
+				}
+				if hasClosingQuote {
+					bytePos := len(string(runes[:i]))
+					breakPoints = append(breakPoints, bytePos)
+					prevClass = currClass
+					if currClass != ClassSP {
+						lastNonSpaceClass = currClass
+					}
+					continue
+				}
+			}
+		}
+
 		// LB28: Do not break after Virama if Aksara sequence continues
 		// VI × AL × VI × AK pattern (like DOTTED CIRCLE × VI × DOTTED CIRCLE × VI × AK)
 		if (prevClass == ClassVI || prevClass == ClassVF) && isClassOrVariant(currClass, ClassAL) {
@@ -4452,13 +4627,14 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 		}
 
 		// LB28.12/LB28.13: Do not break after Virama before Aksara
-		// Base × VI × (CM)* × AK or Base × VF × (CM)* × AK
+		// Base × VI × (CM)* × AK/AS - connecting virama
+		// Note: VF (Virama Final) marks the END of a cluster, so VF ÷ AK/AS should break
 		// Base can be AK, AS, or AL (for DOTTED CIRCLE)
-		// Need to look back past CM to find VI/VF, then check what precedes it
+		// Need to look back past CM to find VI, then check what precedes it
 		if currClass == ClassAK || currClass == ClassAS {
 			// Look back past CM to find the actual base character
 			checkIdx := i - 1
-			foundVIorVF := false
+			foundVI := false
 			viIndex := -1
 			for checkIdx >= 0 {
 				checkRune := runes[checkIdx]
@@ -4469,14 +4645,15 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 					continue
 				}
 				// Found non-CM character
-				if checkClass == ClassVI || checkClass == ClassVF {
-					foundVIorVF = true
+				// Only check for VI (connecting virama), not VF (final virama)
+				if checkClass == ClassVI {
+					foundVI = true
 					viIndex = checkIdx
 				}
 				break
 			}
-			if foundVIorVF && viIndex > 0 {
-				// Found VI/VF - now check if it follows AK, AS, or AL (skipping past any CM)
+			if foundVI && viIndex > 0 {
+				// Found VI - now check if it follows AK, AS, or AL (skipping past any CM)
 				viPrevIdx := viIndex - 1
 				foundValidBase := false
 				for viPrevIdx >= 0 {
@@ -4494,13 +4671,46 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 					break
 				}
 				if foundValidBase {
-					// Base × (CM)* × VI/VF × (CM)* × AK/AS - don't break (LB28.12)
+					// Base × (CM)* × VI × (CM)* × AK/AS - don't break (LB28.12)
 					prevClass = currClass
 					if currClass != ClassSP {
 						lastNonSpaceClass = currClass
 					}
 					continue
 				}
+			}
+		}
+
+		// LB28.14: Do not break between Aksara Starts when building towards Virama Final
+		// AS × (CM)* × AS × (CM)* × VF
+		// Don't break AS × AS if VF immediately follows the second AS (with only CM in between)
+		if prevClass == ClassAS && currClass == ClassAS {
+			// Look ahead from current AS to see if VF immediately follows (skipping only CM)
+			foundVF := false
+			checkIdx := i + 1
+			// Only skip CM/ZWJ, if we hit another AS or anything else, stop
+			for checkIdx < len(runes) && checkIdx < i+4 {
+				checkRune := runes[checkIdx]
+				checkClass := getBreakClass(checkRune)
+				if isClassOrVariant(checkClass, ClassCM) || checkClass == ClassZWJ {
+					// Skip CM/ZWJ
+					checkIdx++
+					continue
+				}
+				// Found non-CM: check if it's VF
+				if checkClass == ClassVF {
+					foundVF = true
+				}
+				// Stop checking - we found the next real character
+				break
+			}
+			if foundVF {
+				// Don't break - AS × AS × VF pattern (current AS immediately followed by VF)
+				prevClass = currClass
+				if currClass != ClassSP {
+					lastNonSpaceClass = currClass
+				}
+				continue
 			}
 		}
 
