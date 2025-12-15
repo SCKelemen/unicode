@@ -94,6 +94,21 @@ func getWordBreakClass(r rune) WordBreakClass {
 		return WBExtend
 	}
 
+	// Emoji modifiers (skin tones) are Extend for word breaking
+	if r >= 0x1F3FB && r <= 0x1F3FF {
+		return WBExtend
+	}
+
+	// Special Cf characters with specific Word_Break properties
+	// U+06DD (Arabic End of Ayah) is Numeric for word breaking
+	if r == 0x06DD {
+		return WBNumeric
+	}
+	// U+070F (Syriac Abbreviation Mark) is ALetter for word breaking
+	if r == 0x070F {
+		return WBALetter
+	}
+
 	// Format
 	if unicode.Is(unicode.Cf, r) && r != 0x200C && r != 0x200D {
 		return WBFormat
@@ -125,8 +140,24 @@ func getWordBreakClass(r rune) WordBreakClass {
 		return WBNumeric
 	}
 
-	// ALetter (check before ExtendedPictographic, as letters take precedence)
+	// ALetter - includes some non-letter symbols
 	if unicode.IsLetter(r) {
+		return WBALetter
+	}
+	// Special ALetter symbols (So and Nl categories that are ALetter for word breaking)
+	if (r >= 0x16EE && r <= 0x16F0) || (r >= 0x2160 && r <= 0x2182) || (r >= 0x2185 && r <= 0x2188) {
+		return WBALetter
+	}
+	if (r >= 0x24B6 && r <= 0x24E9) { // Circled letters
+		return WBALetter
+	}
+	if (r >= 0xA6E6 && r <= 0xA6EF) || (r >= 0x10140 && r <= 0x10174) || r == 0x10341 || r == 0x1034A {
+		return WBALetter
+	}
+	if (r >= 0x103D1 && r <= 0x103D5) || (r >= 0x12400 && r <= 0x1246E) {
+		return WBALetter
+	}
+	if (r >= 0x1F130 && r <= 0x1F149) || (r >= 0x1F150 && r <= 0x1F169) || (r >= 0x1F170 && r <= 0x1F189) {
 		return WBALetter
 	}
 
@@ -155,7 +186,6 @@ func FindWordBreaks(text string) []int {
 	}
 
 	breaks := []int{0} // WB1: Break at start
-	riCount := 0
 
 	for i := 1; i < len(runes); i++ {
 		// Skip Format and Extend for most rules (WB4)
@@ -178,8 +208,10 @@ func FindWordBreaks(text string) []int {
 		} else if curr == WBCR || curr == WBLF || curr == WBNewline {
 			// WB3b: Break before newlines
 			shouldBreak = true
-		} else if classes[i-1] == WBZWJ && curr == WBExtendedPictographic {
+		} else if classes[i-1] == WBZWJ && isExtendedPictographic(runes[i]) {
 			// WB3c: Don't break within emoji ZWJ sequences
+			// Note: Check actual ExtPict property, not word break class, since some
+			// characters like Ⓜ are classified as ALetter but are also ExtPict
 			shouldBreak = false
 		} else if classes[i-1] == WBWSegSpace && curr == WBWSegSpace {
 			// WB3d: Keep horizontal whitespace together
@@ -190,8 +222,30 @@ func FindWordBreaks(text string) []int {
 		} else if (prev == WBALetter || prev == WBHebrewLetter) && (curr == WBALetter || curr == WBHebrewLetter) {
 			// WB5: Don't break between letters
 			shouldBreak = false
+		} else if prev == WBHebrewLetter && curr == WBSingleQuote {
+			// WB7a: Hebrew_Letter × Single_Quote
+			shouldBreak = false
+		} else if prev == WBHebrewLetter && curr == WBDoubleQuote {
+			// WB7b: Hebrew_Letter × Double_Quote Hebrew_Letter
+			nextIdx := i + 1
+			for nextIdx < len(runes) && (classes[nextIdx] == WBFormat || classes[nextIdx] == WBExtend || classes[nextIdx] == WBZWJ) {
+				nextIdx++
+			}
+			if nextIdx < len(runes) && classes[nextIdx] == WBHebrewLetter {
+				shouldBreak = false
+			}
+		} else if prev == WBDoubleQuote && curr == WBHebrewLetter {
+			// WB7c: Hebrew_Letter Double_Quote × Hebrew_Letter
+			// Look back to see if there's a HebrewLetter before the DoubleQuote
+			prevPrevIdx := prevIdx - 1
+			for prevPrevIdx >= 0 && (classes[prevPrevIdx] == WBFormat || classes[prevPrevIdx] == WBExtend || classes[prevPrevIdx] == WBZWJ) {
+				prevPrevIdx--
+			}
+			if prevPrevIdx >= 0 && classes[prevPrevIdx] == WBHebrewLetter {
+				shouldBreak = false
+			}
 		} else if (prev == WBALetter || prev == WBHebrewLetter) && (curr == WBMidLetter || curr == WBMidNumLet || curr == WBSingleQuote) {
-			// WB6/7: Check for AHLetter (MidLetter | MidNumLet | Single_Quote) AHLetter
+			// WB6: Check for AHLetter × (MidLetter | MidNumLet | Single_Quote) AHLetter
 			nextIdx := i + 1
 			for nextIdx < len(runes) && (classes[nextIdx] == WBFormat || classes[nextIdx] == WBExtend || classes[nextIdx] == WBZWJ) {
 				nextIdx++
@@ -199,16 +253,14 @@ func FindWordBreaks(text string) []int {
 			if nextIdx < len(runes) && (classes[nextIdx] == WBALetter || classes[nextIdx] == WBHebrewLetter) {
 				shouldBreak = false
 			}
-		} else if prev == WBHebrewLetter && curr == WBSingleQuote {
-			// WB7a: Hebrew_Letter × Single_Quote
-			shouldBreak = false
-		} else if prev == WBHebrewLetter && curr == WBDoubleQuote {
-			// WB7b/c: Hebrew_Letter Double_Quote Hebrew_Letter
-			nextIdx := i + 1
-			for nextIdx < len(runes) && (classes[nextIdx] == WBFormat || classes[nextIdx] == WBExtend || classes[nextIdx] == WBZWJ) {
-				nextIdx++
+		} else if (prev == WBMidLetter || prev == WBMidNumLet || prev == WBSingleQuote) && (curr == WBALetter || curr == WBHebrewLetter) {
+			// WB7: Check for AHLetter (MidLetter | MidNumLet | Single_Quote) × AHLetter
+			// Look back to see if there's an AHLetter before the MidLetter
+			prevPrevIdx := prevIdx - 1
+			for prevPrevIdx >= 0 && (classes[prevPrevIdx] == WBFormat || classes[prevPrevIdx] == WBExtend || classes[prevPrevIdx] == WBZWJ) {
+				prevPrevIdx--
 			}
-			if nextIdx < len(runes) && classes[nextIdx] == WBHebrewLetter {
+			if prevPrevIdx >= 0 && (classes[prevPrevIdx] == WBALetter || classes[prevPrevIdx] == WBHebrewLetter) {
 				shouldBreak = false
 			}
 		} else if prev == WBNumeric && curr == WBNumeric {
@@ -221,12 +273,22 @@ func FindWordBreaks(text string) []int {
 			// WB10: Numeric × AHLetter
 			shouldBreak = false
 		} else if prev == WBNumeric && (curr == WBMidNum || curr == WBMidNumLet || curr == WBSingleQuote) {
-			// WB11/12: Check for Numeric (MidNum | MidNumLet | Single_Quote) Numeric
+			// WB11: Check for Numeric × (MidNum | MidNumLet | Single_Quote) Numeric
 			nextIdx := i + 1
 			for nextIdx < len(runes) && (classes[nextIdx] == WBFormat || classes[nextIdx] == WBExtend || classes[nextIdx] == WBZWJ) {
 				nextIdx++
 			}
 			if nextIdx < len(runes) && classes[nextIdx] == WBNumeric {
+				shouldBreak = false
+			}
+		} else if (prev == WBMidNum || prev == WBMidNumLet || prev == WBSingleQuote) && curr == WBNumeric {
+			// WB12: Check for Numeric (MidNum | MidNumLet | Single_Quote) × Numeric
+			// Look back to see if there's a Numeric before the MidNum
+			prevPrevIdx := prevIdx - 1
+			for prevPrevIdx >= 0 && (classes[prevPrevIdx] == WBFormat || classes[prevPrevIdx] == WBExtend || classes[prevPrevIdx] == WBZWJ) {
+				prevPrevIdx--
+			}
+			if prevPrevIdx >= 0 && classes[prevPrevIdx] == WBNumeric {
 				shouldBreak = false
 			}
 		} else if prev == WBKatakana && curr == WBKatakana {
@@ -240,20 +302,25 @@ func FindWordBreaks(text string) []int {
 			shouldBreak = false
 		} else if prev == WBRegionalIndicator && curr == WBRegionalIndicator {
 			// WB15/16: Regional Indicator pairs
-			riCount++
-			if riCount%2 == 1 {
+			// Count RIs backwards from prevIdx, skipping Format/Extend/ZWJ (which are transparent)
+			count := 0
+			j := prevIdx
+			for j >= 0 {
+				if classes[j] == WBRegionalIndicator {
+					count++
+					j--
+				} else if classes[j] == WBFormat || classes[j] == WBExtend || classes[j] == WBZWJ {
+					// Skip transparent characters
+					j--
+				} else {
+					// Hit a non-RI, non-transparent character
+					break
+				}
+			}
+			// If count is odd, this is the 2nd, 4th, 6th... RI (pairs with previous)
+			if count%2 == 1 {
 				shouldBreak = false
 			}
-		}
-
-		// Reset RI count
-		if prev != WBRegionalIndicator {
-			riCount = 0
-		}
-		if curr == WBRegionalIndicator && prev == WBRegionalIndicator {
-			// Continue
-		} else if curr == WBRegionalIndicator {
-			riCount = 1
 		}
 
 		if shouldBreak {

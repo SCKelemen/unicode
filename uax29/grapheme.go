@@ -135,6 +135,32 @@ func isExtendedPictographic(r rune) bool {
 	if r >= 0x1F3FB && r <= 0x1F3FF {
 		return false
 	}
+	// Copyright, registered, trade mark
+	if r == 0x00A9 || r == 0x00AE {
+		return true
+	}
+	// Misc text symbols
+	if r >= 0x203C && r <= 0x3299 {
+		// Specific ExtPict ranges within this broader range
+		if (r >= 0x203C && r <= 0x2049) || // ‼️, ⁉️
+			(r >= 0x2122 && r <= 0x2139) || // ™️, ℹ️
+			(r >= 0x2194 && r <= 0x21AA) || // Arrows
+			(r >= 0x231A && r <= 0x231B) || // Watches
+			r == 0x2328 || // Keyboard
+			r == 0x23CF || // Eject
+			(r >= 0x23E9 && r <= 0x23F3) || // Media controls
+			(r >= 0x23F8 && r <= 0x23FA) || // Pause, play
+			r == 0x24C2 || // Ⓜ️
+			(r >= 0x25AA && r <= 0x25FE) || // Squares
+			(r >= 0x2600 && r <= 0x27BF && !(r >= 0x2700 && r <= 0x2704)) || // Misc symbols (except scissors)
+			(r >= 0x2934 && r <= 0x2935) || // Arrows
+			(r >= 0x2B00 && r <= 0x2BFF) || // Misc symbols and arrows
+			r == 0x3030 || r == 0x303D || // Wavy dash, part alternation
+			r == 0x3297 || r == 0x3299 { // Circled ideographs
+			return true
+		}
+		return false
+	}
 	// Common emoji ranges (excluding modifiers)
 	if r >= 0x1F300 && r <= 0x1F5FF {
 		return true
@@ -149,13 +175,6 @@ func isExtendedPictographic(r rune) bool {
 		return true
 	}
 	// Misc Symbols (sparse - only some are ExtPict)
-	// Simplified: include common emoji symbols, exclude scissors (U+2700-2704)
-	if r >= 0x2600 && r <= 0x26FF && !(r >= 0x2700 && r <= 0x2704) {
-		return true
-	}
-	if r >= 0x2700 && r <= 0x27BF && r >= 0x2705 {
-		return true
-	}
 	if r >= 0x1F000 && r <= 0x1F02F {
 		return true
 	}
