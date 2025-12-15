@@ -4362,20 +4362,24 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			if prevClass == ClassSP {
 				// LB18: Break after spaces (word boundaries)
 				// But respect LB9, LB10, LB14, LB15a, LB16, LB17
-				// LB9: Do not break before CM (combining marks attach to base)
-				// LB10: CM after space/break is treated as AL (isolated, no base to attach to)
-				// If previous rune is CM, check if it's isolated (after space) or attaching
+				// LB9: Do not break a combining character sequence (CM attaches to base)
+				// LB10: Treat CM after sot/BK/CR/LF/NL/SP/ZW as AL (isolated, not attaching)
+				// Check if prev rune is CM and whether it's isolated or attaching
 				prevRune := runes[i-1]
 				prevRuneClass := getBreakClass(prevRune)
-				isIsolatedCM := false
+				isCMAttaching := false
 				if (isClassOrVariant(prevRuneClass, ClassCM) || prevRuneClass == ClassZWJ) && i >= 2 {
-					// Check if CM is isolated (appears after space or start)
+					// CM exists - check what's before it to determine if it's attaching or isolated
 					prevPrevRune := runes[i-2]
 					prevPrevClass := getBreakClass(prevPrevRune)
-					isIsolatedCM = prevPrevClass == ClassSP
+					// CM is attaching if it follows a non-space/non-break character
+					isCMAttaching = prevPrevClass != ClassSP && prevPrevClass != ClassBK &&
+						prevPrevClass != ClassCR && prevPrevClass != ClassLF &&
+						prevPrevClass != ClassNL && prevPrevClass != ClassZW
 				}
-				if (isClassOrVariant(prevRuneClass, ClassCM) || prevRuneClass == ClassZWJ) && !isIsolatedCM {
-					// Previous character is CM/ZWJ with a base - don't break (it attaches to current char per LB9)
+				if (isClassOrVariant(prevRuneClass, ClassCM) || prevRuneClass == ClassZWJ) && isCMAttaching {
+					// CM/ZWJ with a base - don't break (it attaches to current char per LB9)
+					// The break after the actual SP was already added when CM was processed
 				} else if isClassOrVariant(lastNonSpaceClass, ClassOP) || lastNonSpaceClass == ClassQU_Pi {
 					// Don't break - we're in "OP SP*" or "QU_Pi SP*" sequence
 				} else if (isClassOrVariant(lastNonSpaceClass, ClassCL) || lastNonSpaceClass == ClassCP) &&
@@ -4455,20 +4459,24 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			} else if prevClass == ClassSP {
 				// LB18: Break after spaces (word boundaries)
 				// But respect LB6, LB7, LB9, LB10, LB11, LB13, LB14, LB15a, LB16, LB17
-				// LB9: Do not break before CM (combining marks attach to base)
-				// LB10: CM after space/break is treated as AL (isolated, no base to attach to)
-				// If previous rune is CM, check if it's isolated (after space) or attaching
+				// LB9: Do not break a combining character sequence (CM attaches to base)
+				// LB10: Treat CM after sot/BK/CR/LF/NL/SP/ZW as AL (isolated, not attaching)
+				// Check if prev rune is CM and whether it's isolated or attaching
 				prevRune := runes[i-1]
 				prevRuneClass := getBreakClass(prevRune)
-				isIsolatedCM := false
+				isCMAttaching := false
 				if (isClassOrVariant(prevRuneClass, ClassCM) || prevRuneClass == ClassZWJ) && i >= 2 {
-					// Check if CM is isolated (appears after space or start)
+					// CM exists - check what's before it to determine if it's attaching or isolated
 					prevPrevRune := runes[i-2]
 					prevPrevClass := getBreakClass(prevPrevRune)
-					isIsolatedCM = prevPrevClass == ClassSP
+					// CM is attaching if it follows a non-space/non-break character
+					isCMAttaching = prevPrevClass != ClassSP && prevPrevClass != ClassBK &&
+						prevPrevClass != ClassCR && prevPrevClass != ClassLF &&
+						prevPrevClass != ClassNL && prevPrevClass != ClassZW
 				}
-				if (isClassOrVariant(prevRuneClass, ClassCM) || prevRuneClass == ClassZWJ) && !isIsolatedCM {
-					// Previous character is CM/ZWJ with a base - don't break (it attaches to current char per LB9)
+				if (isClassOrVariant(prevRuneClass, ClassCM) || prevRuneClass == ClassZWJ) && isCMAttaching {
+					// CM/ZWJ with a base - don't break (it attaches to current char per LB9)
+					// The break after the actual SP was already added when CM was processed
 				} else if isClassOrVariant(lastNonSpaceClass, ClassOP) || lastNonSpaceClass == ClassQU_Pi {
 					// Don't break - we're in "OP SP*" or "QU_Pi SP*" sequence
 				} else if (isClassOrVariant(lastNonSpaceClass, ClassCL) || lastNonSpaceClass == ClassCP) &&
@@ -4515,6 +4523,7 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 		}
 
 		// LB9: Treat X (CM | ZWJ)* as if it were X
+		// LB10: Treat CM or ZWJ after sot, BK, CR, LF, NL, SP, ZW as AL
 		// Update previous class UNLESS current is combining mark, ZWJ, or SA
 		// SA (Southeast Asian) scripts often act as combining marks (SA_Mn, SA_Mc)
 		if !isClassOrVariant(currClass, ClassCM) && currClass != ClassZWJ && currClass != ClassSA {
@@ -4523,6 +4532,11 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			if currClass != ClassSP {
 				lastNonSpaceClass = currClass
 			}
+		} else if (isClassOrVariant(currClass, ClassCM) || currClass == ClassZWJ) &&
+			(prevClass == ClassSP || prevClass == ClassZW) {
+			// LB10: CM or ZWJ after SP or ZW is treated as AL (isolated, not attaching to base)
+			prevClass = ClassAL
+			lastNonSpaceClass = ClassAL
 		}
 	}
 
