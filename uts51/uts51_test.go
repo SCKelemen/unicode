@@ -212,6 +212,126 @@ func TestDefaultPresentation(t *testing.T) {
 	}
 }
 
+func TestIsValidKeycapSequence(t *testing.T) {
+	tests := []struct {
+		name     string
+		runes    []rune
+		expected bool
+	}{
+		// Valid fully-qualified keycap sequences
+		{"Keycap 9 (fully-qualified)", []rune{'9', VariationSelector16, CombiningEnclosingKeycap}, true},
+		{"Keycap # (fully-qualified)", []rune{'#', VariationSelector16, CombiningEnclosingKeycap}, true},
+		{"Keycap * (fully-qualified)", []rune{'*', VariationSelector16, CombiningEnclosingKeycap}, true},
+		{"Keycap 0 (fully-qualified)", []rune{'0', VariationSelector16, CombiningEnclosingKeycap}, true},
+
+		// Valid minimally-qualified keycap sequences (no FE0F)
+		{"Keycap 9 (minimally-qualified)", []rune{'9', CombiningEnclosingKeycap}, true},
+		{"Keycap # (minimally-qualified)", []rune{'#', CombiningEnclosingKeycap}, true},
+
+		// Invalid sequences
+		{"Not a keycap base", []rune{'A', VariationSelector16, CombiningEnclosingKeycap}, false},
+		{"Missing keycap combining", []rune{'9', VariationSelector16}, false},
+		{"Empty sequence", []rune{}, false},
+		{"Single character", []rune{'9'}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsValidKeycapSequence(tt.runes)
+			if got != tt.expected {
+				t.Errorf("IsValidKeycapSequence(%v) = %v, want %v", tt.runes, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsValidTagSequence(t *testing.T) {
+	tests := []struct {
+		name     string
+		runes    []rune
+		expected bool
+	}{
+		// Valid tag sequences (subdivision flags)
+		{
+			"England flag",
+			[]rune{0x1F3F4, 0xE0067, 0xE0062, 0xE0065, 0xE006E, 0xE0067, TagTerminator},
+			true,
+		},
+		{
+			"Scotland flag",
+			[]rune{0x1F3F4, 0xE0067, 0xE0062, 0xE0073, 0xE0063, 0xE0074, TagTerminator},
+			true,
+		},
+		{
+			"Wales flag",
+			[]rune{0x1F3F4, 0xE0067, 0xE0062, 0xE0077, 0xE006C, 0xE0073, TagTerminator},
+			true,
+		},
+
+		// Invalid sequences
+		{"Missing terminator", []rune{0x1F3F4, 0xE0067, 0xE0062}, false},
+		{"Non-emoji base", []rune{'A', 0xE0067, TagTerminator}, false},
+		{"Empty sequence", []rune{}, false},
+		{"Too short", []rune{0x1F3F4, TagTerminator}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsValidTagSequence(tt.runes)
+			if got != tt.expected {
+				t.Errorf("IsValidTagSequence(%v) = %v, want %v", tt.runes, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsValidEmojiSequence(t *testing.T) {
+	tests := []struct {
+		name     string
+		runes    []rune
+		expected bool
+	}{
+		// Single emoji
+		{"Single emoji", []rune{'😀'}, true},
+
+		// Keycap sequences
+		{"Keycap 9", []rune{'9', VariationSelector16, CombiningEnclosingKeycap}, true},
+
+		// Modifier sequences
+		{"Waving hand + light skin", []rune{0x1F44B, 0x1F3FB}, true},
+		{"Thumbs up + dark skin", []rune{0x1F44D, 0x1F3FF}, true},
+
+		// Presentation sequences
+		{"Emoji with text selector", []rune{'😀', VariationSelector15}, true},
+		{"Emoji with emoji selector", []rune{'☺', VariationSelector16}, true},
+
+		// Flag sequences
+		{"US flag", []rune{0x1F1FA, 0x1F1F8}, true},
+		{"UK flag", []rune{0x1F1EC, 0x1F1E7}, true},
+
+		// ZWJ sequences
+		{"Family ZWJ", []rune{0x1F468, ZeroWidthJoiner, 0x1F469, ZeroWidthJoiner, 0x1F467}, true},
+		{"Kiss ZWJ", []rune{0x1F469, ZeroWidthJoiner, 0x2764, VariationSelector16, ZeroWidthJoiner, 0x1F48B, ZeroWidthJoiner, 0x1F468}, true},
+
+		// Tag sequences
+		{"England flag", []rune{0x1F3F4, 0xE0067, 0xE0062, 0xE0065, 0xE006E, 0xE0067, TagTerminator}, true},
+
+		// Invalid sequences
+		{"Empty", []rune{}, false},
+		{"Non-emoji", []rune{'A'}, false},
+		{"Invalid ZWJ", []rune{'A', ZeroWidthJoiner, 'B'}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsValidEmojiSequence(tt.runes)
+			if got != tt.expected {
+				t.Errorf("IsValidEmojiSequence(%v) = %v, want %v", tt.runes, got, tt.expected)
+			}
+		})
+	}
+}
+
 // Benchmark property lookups
 func BenchmarkIsEmoji(b *testing.B) {
 	testRunes := []rune{'😀', '🎉', 'A', '中', '#'}

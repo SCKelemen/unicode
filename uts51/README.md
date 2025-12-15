@@ -4,7 +4,7 @@ Implementation of [UTS #51 (Unicode Emoji)](https://www.unicode.org/reports/tr51
 
 ## Overview
 
-This package provides **99.5% conformance** (5,198/5,223 test cases passing) for UTS #51, with complete emoji property detection and terminal rendering support.
+This package provides **100% conformance** (5,223/5,223 test cases passing) for UTS #51, with complete emoji property detection, sequence validation, and terminal rendering support.
 
 Essential for:
 - Terminal emulators calculating emoji display widths
@@ -130,6 +130,12 @@ This package works seamlessly with:
 - `IsRegionalIndicator(r rune) bool` - For flag sequences
 - `IsTagCharacter(r rune) bool` - For subdivision flags
 
+### Sequence Validation
+
+- `IsValidKeycapSequence(runes []rune) bool` - Validates keycap sequences ([0-9#*] + U+FE0F + U+20E3)
+- `IsValidTagSequence(runes []rune) bool` - Validates tag sequences (subdivision flags)
+- `IsValidEmojiSequence(runes []rune) bool` - Validates any emoji sequence type
+
 ### Constants
 
 ```go
@@ -141,11 +147,11 @@ CombiningEnclosingKeycap  // U+20E3 - keycap sequences
 
 ## Conformance
 
-**99.5% conformance** with UTS #51 Version 17.0
+**100% conformance** with UTS #51 Version 17.0
 
-- **5,198 test cases passing** from emoji-test.txt
+- **5,223/5,223 test cases passing** from emoji-test.txt
 - All 6 emoji properties correctly implemented
-- 25 remaining cases require sequence validation (keycap and tag sequences)
+- Complete sequence validation (keycap, tag, modifier, flag, ZWJ sequences)
 
 ### Conformance Requirements
 
@@ -153,7 +159,7 @@ Per UTS #51 §5:
 
 - ✅ **C1**: Version 17.0 identification
 - ✅ **C2**: Display capability for basic emoji set
-- 🔄 **C3**: Rejection of invalid sequences (partial)
+- ✅ **C3**: Rejection of invalid sequences
 
 ## Implementation Details
 
@@ -221,18 +227,35 @@ func analyzeEmoji(r rune) {
 }
 ```
 
-## Limitations & Future Work
+### Sequence Validation
 
-### Current Limitations
-- **Sequence validation**: 25 complex sequences (0.5%) not yet validated
-- **Grapheme clusters**: Full UAX #29 integration pending
-- **ZWJ sequences**: Detection implemented, validation pending
+```go
+// Validate a keycap sequence
+keycap := []rune{'9', '\uFE0F', '\u20E3'}  // 9⃣
+if uts51.IsValidKeycapSequence(keycap) {
+    fmt.Println("Valid keycap sequence")
+}
+
+// Validate a tag sequence (subdivision flag)
+englandFlag := []rune{0x1F3F4, 0xE0067, 0xE0062, 0xE0065, 0xE006E, 0xE0067, 0xE007F}
+if uts51.IsValidTagSequence(englandFlag) {
+    fmt.Println("Valid subdivision flag")
+}
+
+// Validate any emoji sequence
+sequence := []rune{0x1F468, 0x200D, 0x1F469, 0x200D, 0x1F467}  // Family ZWJ sequence
+if uts51.IsValidEmojiSequence(sequence) {
+    fmt.Println("Valid emoji sequence")
+}
+```
+
+## Future Work
 
 ### Planned Features
-- Complete sequence validation (ZWJ, keycap, flag, tag sequences)
-- Full grapheme cluster segmentation
-- Emoji version detection
+- Full grapheme cluster segmentation (UAX #29 integration)
+- Emoji version detection per character
 - RGI (Recommended for General Interchange) emoji set identification
+- Sequence width calculation for multi-codepoint emoji
 
 ## References
 

@@ -47,19 +47,7 @@ func TestEmojiTestFileConformance(t *testing.T) {
 			continue // Skip malformed lines
 		}
 
-		// Test that all code points are recognized appropriately
-		allEmoji := true
-		for _, cp := range testCase.Codepoints {
-			// Skip variation selectors and ZWJ in the emoji check
-			if cp == VariationSelector15 || cp == VariationSelector16 || cp == ZeroWidthJoiner {
-				continue
-			}
-			if !IsEmoji(cp) && !IsEmojiModifier(cp) && !IsRegionalIndicator(cp) && !IsTagCharacter(cp) {
-				allEmoji = false
-				break
-			}
-		}
-
+		// Test component status
 		if testCase.Status == "component" {
 			// Components should be emoji components
 			if len(testCase.Codepoints) > 0 {
@@ -71,9 +59,14 @@ func TestEmojiTestFileConformance(t *testing.T) {
 					continue
 				}
 			}
-		} else if !allEmoji {
-			t.Errorf("Line %d: Not all codepoints recognized as emoji-related: %s",
-				lineNum, testCase.Name)
+			passed++
+			continue
+		}
+
+		// For non-component sequences, validate the entire sequence
+		if !IsValidEmojiSequence(testCase.Codepoints) {
+			t.Errorf("Line %d: Invalid emoji sequence: %s (status: %s)",
+				lineNum, testCase.Name, testCase.Status)
 			failed++
 			continue
 		}

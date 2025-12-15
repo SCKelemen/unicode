@@ -351,3 +351,156 @@ func DefaultPresentation(r rune) rune {
 	}
 	return 'T' // Non-emoji default to text
 }
+
+// IsValidKeycapSequence validates an emoji keycap sequence.
+//
+// Per UTS #51 §2.3: https://www.unicode.org/reports/tr51/#def_emoji_keycap_sequence
+// "An emoji keycap sequence is a sequence of the following form:
+// keycap_base + \uFE0F + \u20E3"
+//
+// Where keycap_base is one of: [0-9#*]
+//
+// Example:
+//
+//	uts51.IsValidKeycapSequence([]rune{'9', '\uFE0F', '\u20E3'})  // true - "9⃣"
+//	uts51.IsValidKeycapSequence([]rune{'#', '\uFE0F', '\u20E3'})  // true - "#⃣"
+func IsValidKeycapSequence(runes []rune) bool {
+	if len(runes) < 2 {
+		return false
+	}
+
+	// Check for keycap base: [0-9#*]
+	base := runes[0]
+	if !((base >= '0' && base <= '9') || base == '#' || base == '*') {
+		return false
+	}
+
+	// For fully-qualified keycap sequences: base + FE0F + 20E3
+	if len(runes) == 3 {
+		return runes[1] == VariationSelector16 && runes[2] == CombiningEnclosingKeycap
+	}
+
+	// For minimally-qualified keycap sequences: base + 20E3 (no FE0F)
+	if len(runes) == 2 {
+		return runes[1] == CombiningEnclosingKeycap
+	}
+
+	return false
+}
+
+// IsValidTagSequence validates an emoji tag sequence.
+//
+// Per UTS #51 §2.6: https://www.unicode.org/reports/tr51/#def_emoji_tag_sequence
+// "An emoji tag sequence is a sequence of the following form:
+// tag_base + tag_spec + tag_term"
+//
+// Where:
+//   - tag_base is a character with Emoji=Yes
+//   - tag_spec is one or more tag characters (U+E0020..U+E007E)
+//   - tag_term is U+E007F (cancel tag)
+//
+// Example:
+//
+//	// England flag: 🏴 + tag chars for "gbeng" + tag terminator
+//	uts51.IsValidTagSequence([]rune{0x1F3F4, 0xE0067, 0xE0062, 0xE0065, 0xE006E, 0xE0067, 0xE007F})  // true
+func IsValidTagSequence(runes []rune) bool {
+	if len(runes) < 3 {
+		return false
+	}
+
+	// First character must be emoji
+	if !IsEmoji(runes[0]) {
+		return false
+	}
+
+	// Last character must be tag terminator
+	if runes[len(runes)-1] != TagTerminator {
+		return false
+	}
+
+	// Middle characters must be tag characters
+	for i := 1; i < len(runes)-1; i++ {
+		if !IsTagCharacter(runes[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// IsValidEmojiSequence validates any type of emoji sequence.
+//
+// This is a convenience function that checks for all sequence types
+// defined in UTS #51 §2: https://www.unicode.org/reports/tr51/#Emoji_Sequences
+//
+// Supported sequence types:
+//   - Keycap sequences ([0-9#*] + U+FE0F + U+20E3)
+//   - Tag sequences (base + tag chars + U+E007F)
+//   - Modifier sequences (base + skin tone)
+//   - ZWJ sequences (characters joined by U+200D)
+//   - Flag sequences (two regional indicators)
+//
+// Example:
+//
+//	uts51.IsValidEmojiSequence([]rune{'9', '\uFE0F', '\u20E3'})  // true - keycap
+//	uts51.IsValidEmojiSequence([]rune{0x1F44B, 0x1F3FB})         // true - waving hand + light skin
+func IsValidEmojiSequence(runes []rune) bool {
+	if len(runes) == 0 {
+		return false
+	}
+
+	// Single character - just check if it's emoji
+	if len(runes) == 1 {
+		return IsEmoji(runes[0])
+	}
+
+	// Check for keycap sequence
+	if IsValidKeycapSequence(runes) {
+		return true
+	}
+
+	// Check for tag sequence
+	if IsValidTagSequence(runes) {
+		return true
+	}
+
+	// Check for modifier sequence (base + modifier)
+	if len(runes) == 2 && IsEmojiModifierBase(runes[0]) && IsEmojiModifier(runes[1]) {
+		return true
+	}
+
+	// Check for presentation sequence (emoji + variation selector)
+	if len(runes) == 2 {
+		if IsEmoji(runes[0]) && (runes[1] == VariationSelector15 || runes[1] == VariationSelector16) {
+			return true
+		}
+	}
+
+	// Check for flag sequence (two regional indicators)
+	if len(runes) == 2 && IsRegionalIndicator(runes[0]) && IsRegionalIndicator(runes[1]) {
+		return true
+	}
+
+	// Check for ZWJ sequence - contains at least one ZWJ
+	hasZWJ := false
+	for _, r := range runes {
+		if r == ZeroWidthJoiner {
+			hasZWJ = true
+			break
+		}
+	}
+	if hasZWJ {
+		// Basic validation: all non-ZWJ, non-VS characters should be emoji-related
+		for _, r := range runes {
+			if r == ZeroWidthJoiner || r == VariationSelector15 || r == VariationSelector16 {
+				continue
+			}
+			if !IsEmoji(r) && !IsEmojiModifier(r) {
+				return false
+			}
+		}
+		return true
+	}
+
+	return false
+}
