@@ -403,55 +403,19 @@ func processExplicitLevels(classes []BidiClass, levels []int, paraLevel int) {
 			// BN characters are removed from reordering
 			levels[i] = -1
 
+		case ClassB:
+			// X8: Paragraph separators always get paragraph level
+			// They are not affected by embeddings or isolates
+			levels[i] = paraLevel
+
 		default:
 			// X6: Set level for regular characters
 			currentLevel := stack[len(stack)-1].level
 			override := stack[len(stack)-1].override
 
-			// Special handling for NSM: inherit level from preceding non-removed character
-			// if a closing boundary (PDF/PDI) actually closed something (level decreased),
-			// but NOT if we crossed an override boundary (RLO/LRO)
-			isNSM := class == ClassNSM
-
-			if isNSM {
-				// Check if there's a PDF or PDI immediately before (skipping removed chars)
-				crossedClosing := false
-				crossedOverride := false
-				precedingLevel := -1
-
-				// First pass: find preceding non-removed character
-				for j := i - 1; j >= 0; j-- {
-					if levels[j] >= 0 {
-						precedingLevel = levels[j]
-						break
-					}
-					if classes[j] == ClassPDF || classes[j] == ClassPDI {
-						crossedClosing = true
-					}
-				}
-
-				// Second pass: check if there's an override in the closed sequence
-				// Check all positions from start to current for RLO/LRO
-				if crossedClosing {
-					for j := 0; j < i; j++ {
-						if classes[j] == ClassRLO || classes[j] == ClassLRO {
-							crossedOverride = true
-							break
-						}
-					}
-				}
-
-				// Inherit if: crossed a closer AND current level decreased AND no override
-				if crossedClosing && precedingLevel >= 0 && currentLevel < precedingLevel && !crossedOverride {
-					// NSM crosses a non-override closing boundary that decreased the level
-					levels[i] = precedingLevel
-				} else {
-					// NSM is inside an embedding/isolate or after override
-					levels[i] = currentLevel
-				}
-			} else {
-				levels[i] = currentLevel
-			}
+			// NSM gets the current embedding level like any other character
+			// NSM type resolution happens later in W1
+			levels[i] = currentLevel
 
 			// Apply override if present
 			if override == ClassL {
@@ -478,6 +442,8 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 
 			// Find preceding character at same level that wasn't removed
 			foundPreceding := false
+			precedingLevel := -1
+
 			for j := i - 1; j >= 0; j-- {
 				if levels[j] < 0 {
 					continue // Skip removed characters
@@ -487,11 +453,27 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 					foundPreceding = true
 					break
 				}
+				// Track the preceding level for sos calculation
+				if precedingLevel == -1 {
+					precedingLevel = levels[j]
+				}
 			}
 
 			if !foundPreceding {
-				// Use embedding level direction (sos)
-				if currentLevel%2 == 0 {
+				// Use sos (start-of-sequence) type
+				// sos is determined by the higher of: current level or preceding character's level
+				// If there's no preceding character, use paragraph level
+				if precedingLevel == -1 {
+					precedingLevel = currentLevel // Use current level if no preceding char
+				}
+
+				sosLevel := currentLevel
+				if precedingLevel > sosLevel {
+					sosLevel = precedingLevel
+				}
+
+				// sos is R if higher level is odd, L if even
+				if sosLevel%2 == 0 {
 					classes[i] = ClassL
 				} else {
 					classes[i] = ClassR
@@ -656,29 +638,46 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 				continue
 			}
 
-			// Look back for strong type (L or R) at same or higher level
+			// Look back for strong type (L or R) at same level
 			foundStrong := false
+			precedingLevel := -1
+
 			for j := i - 1; j >= 0; j-- {
 				if levels[j] < 0 {
 					continue // Skip removed characters
 				}
 				// Only consider characters at same level
-				if levels[j] != currentLevel {
-					continue
+				if levels[j] == currentLevel {
+					if classes[j] == ClassL {
+						classes[i] = ClassL
+						foundStrong = true
+						break
+					} else if classes[j] == ClassR {
+						foundStrong = true
+						break
+					}
 				}
-				if classes[j] == ClassL {
-					classes[i] = ClassL
-					foundStrong = true
-					break
-				} else if classes[j] == ClassR {
-					foundStrong = true
-					break
+				// Track the preceding level for sos calculation
+				if precedingLevel == -1 {
+					precedingLevel = levels[j]
 				}
 			}
+
 			// If no strong type found at same level, use sos (start of sequence)
-			// sos is L for even levels, R for odd levels
+			// sos is determined by the higher of: current level or preceding character's level
 			if !foundStrong {
-				if currentLevel%2 == 0 {
+				if precedingLevel == -1 {
+					precedingLevel = currentLevel
+				}
+
+				sosLevel := currentLevel
+				if precedingLevel > sosLevel {
+					sosLevel = precedingLevel
+				}
+
+				// sos is R if higher level is odd, L if even
+				// W7: EN after sos L -> L (else stay EN)
+				if sosLevel%2 == 0 {
 					classes[i] = ClassL
 				}
 				// else stay EN for odd levels
@@ -701,34 +700,96 @@ func resolveNeutralTypes(classes []BidiClass, levels []int, paraLevel int) {
 
 	// N1 and N2: Neutrals take direction from surrounding strong types
 	// Note: PDI is treated as ON for neutral resolution when unmatched
+	// Search within same level run (same embedding level), use sos/eos at boundaries
 	for i := 0; i < n; i++ {
 		if classes[i] == ClassWS || classes[i] == ClassON ||
 			classes[i] == ClassB || classes[i] == ClassS ||
 			classes[i] == ClassPDI {
 
-			// Find preceding strong type
+			currentLevel := levels[i]
+			if currentLevel < 0 {
+				continue
+			}
+
+			// Find preceding strong type at same level
 			prevIsL := false
 			prevIsR := false
+			precedingLevel := -1
+
 			for j := i - 1; j >= 0; j-- {
-				if isStrongL(classes[j]) {
-					prevIsL = true
-					break
-				} else if isStrongR(classes[j]) {
-					prevIsR = true
-					break
+				if levels[j] < 0 {
+					continue // Skip removed
+				}
+				if levels[j] == currentLevel {
+					if isStrongL(classes[j]) {
+						prevIsL = true
+						break
+					} else if isStrongR(classes[j]) {
+						prevIsR = true
+						break
+					}
+				}
+				// Track preceding level for sos
+				if precedingLevel == -1 {
+					precedingLevel = levels[j]
 				}
 			}
 
-			// Find following strong type
+			// If no strong type at same level, use sos
+			if !prevIsL && !prevIsR {
+				if precedingLevel == -1 {
+					precedingLevel = currentLevel
+				}
+				sosLevel := currentLevel
+				if precedingLevel > sosLevel {
+					sosLevel = precedingLevel
+				}
+				// sos is R if higher level is odd, L if even
+				if sosLevel%2 == 0 {
+					prevIsL = true
+				} else {
+					prevIsR = true
+				}
+			}
+
+			// Find following strong type at same level
 			nextIsL := false
 			nextIsR := false
+			followingLevel := -1
+
 			for j := i + 1; j < n; j++ {
-				if isStrongL(classes[j]) {
+				if levels[j] < 0 {
+					continue // Skip removed
+				}
+				if levels[j] == currentLevel {
+					if isStrongL(classes[j]) {
+						nextIsL = true
+						break
+					} else if isStrongR(classes[j]) {
+						nextIsR = true
+						break
+					}
+				}
+				// Track following level for eos
+				if followingLevel == -1 {
+					followingLevel = levels[j]
+				}
+			}
+
+			// If no strong type at same level, use eos
+			if !nextIsL && !nextIsR {
+				if followingLevel == -1 {
+					followingLevel = currentLevel
+				}
+				eosLevel := currentLevel
+				if followingLevel > eosLevel {
+					eosLevel = followingLevel
+				}
+				// eos is R if higher level is odd, L if even
+				if eosLevel%2 == 0 {
 					nextIsL = true
-					break
-				} else if isStrongR(classes[j]) {
+				} else {
 					nextIsR = true
-					break
 				}
 			}
 

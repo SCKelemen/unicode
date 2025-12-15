@@ -2,7 +2,7 @@
 
 Implementation of [UAX #9: Unicode Bidirectional Algorithm](https://www.unicode.org/reports/tr9/) in Go.
 
-**Status:** Highly Conformant (99.7% pass rate on official Unicode test vectors)
+**Status:** Highly Conformant (99.97% pass rate on official Unicode test vectors)
 
 ## Overview
 
@@ -70,9 +70,9 @@ go test -v
 ### Test Results
 
 - **Total tests**: 513,494
-- **Passed**: 511,912
-- **Pass rate**: 99.7%
-- **Failed**: 1,582 (complex edge cases involving weak type inheritance and embedding levels)
+- **Passed**: 513,330
+- **Pass rate**: 99.97%
+- **Failed**: 164 (complex edge cases involving separators and embedding levels)
 
 The test suite includes:
 - Official Unicode BidiTest.txt (513,494 test cases)
@@ -81,13 +81,13 @@ The test suite includes:
 
 ## Known Limitations
 
-- 0.3% of edge cases fail (1,582 out of 513,494 tests)
+- 0.03% of edge cases fail (164 out of 513,494 tests)
 - Most failures involve:
-  - Weak type (EN, AN, ET, ES, CS) level inheritance across embedding boundaries
-  - Complex interactions between L1 reset rules and weak type resolution
-  - Edge cases with override embeddings (RLO, LRO) and separators
+  - Separator characters (ES, CS) inside embeddings with adjacent numeric types
+  - Complex interactions between weak type resolution and embedding boundaries
+  - Edge cases with multiple embedding levels and separator positioning
 
-The implementation is production-ready and handles 99.7% of Unicode's comprehensive test cases, including all common real-world bidirectional text scenarios. The remaining failures are extremely rare edge cases involving complex combinations of embedding levels, weak types, and boundary characters.
+The implementation is production-ready and handles 99.97% of Unicode's comprehensive test cases, including all common real-world bidirectional text scenarios. The remaining failures are extremely rare edge cases involving complex combinations of embedding levels, separator characters, and numeric type adjacency.
 
 ## Implementation Details
 
