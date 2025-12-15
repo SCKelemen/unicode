@@ -47,6 +47,97 @@ jobs:
         flags: unittests
         name: codecov-umbrella
 
+  fetch-conformance-tests:
+    name: Fetch & Verify Official Conformance Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25'
+
+    - name: Download official Unicode 17.0.0 test files
+      run: |
+        echo "Downloading official Unicode 17.0.0 conformance test files..."
+
+        # UAX #29 - Text Segmentation test files
+        curl -fsSL -o uax29/GraphemeBreakTest.txt.new \
+          https://www.unicode.org/Public/17.0.0/ucd/auxiliary/GraphemeBreakTest.txt
+        curl -fsSL -o uax29/WordBreakTest.txt.new \
+          https://www.unicode.org/Public/17.0.0/ucd/auxiliary/WordBreakTest.txt
+        curl -fsSL -o uax29/SentenceBreakTest.txt.new \
+          https://www.unicode.org/Public/17.0.0/ucd/auxiliary/SentenceBreakTest.txt
+
+        # UAX #14 - Line Breaking test file
+        curl -fsSL -o uax14/LineBreakTest.txt \
+          https://www.unicode.org/Public/17.0.0/ucd/auxiliary/LineBreakTest.txt
+
+        echo "Download complete!"
+
+    - name: Verify downloaded test files
+      run: |
+        echo "Verifying test files..."
+
+        # Check UAX29 files exist and are valid
+        for file in GraphemeBreakTest WordBreakTest SentenceBreakTest; do
+          if [ ! -f "uax29/${file}.txt.new" ]; then
+            echo "ERROR: uax29/${file}.txt.new not found"
+            exit 1
+          fi
+          if [ ! -s "uax29/${file}.txt.new" ]; then
+            echo "ERROR: uax29/${file}.txt.new is empty"
+            exit 1
+          fi
+          # Check for Unicode 17.0.0 version marker
+          if ! head -1 "uax29/${file}.txt.new" | grep -q "17.0.0"; then
+            echo "ERROR: uax29/${file}.txt.new does not appear to be version 17.0.0"
+            head -1 "uax29/${file}.txt.new"
+            exit 1
+          fi
+          echo "✓ uax29/${file}.txt.new is valid (Unicode 17.0.0)"
+        done
+
+        # Check UAX14 file
+        if [ ! -f "uax14/LineBreakTest.txt" ]; then
+          echo "ERROR: uax14/LineBreakTest.txt not found"
+          exit 1
+        fi
+        if [ ! -s "uax14/LineBreakTest.txt" ]; then
+          echo "ERROR: uax14/LineBreakTest.txt is empty"
+          exit 1
+        fi
+        echo "✓ uax14/LineBreakTest.txt is valid"
+
+        echo "All test files verified successfully!"
+
+    - name: Run conformance tests with fresh test files
+      run: |
+        echo "Running UAX #29 conformance tests with freshly downloaded files..."
+
+        # Replace test files with newly downloaded ones
+        mv uax29/GraphemeBreakTest.txt.new uax29/GraphemeBreakTest.txt
+        mv uax29/WordBreakTest.txt.new uax29/WordBreakTest.txt
+        mv uax29/SentenceBreakTest.txt.new uax29/SentenceBreakTest.txt
+
+        # Run UAX29 conformance tests
+        cd uax29
+        go test -v -run TestGraphemeBreakOfficial
+        go test -v -run TestWordBreakOfficial
+        go test -v -run TestSentenceBreakOfficial
+        cd ..
+
+        # Run UAX14 conformance tests
+        echo "Running UAX #14 conformance tests..."
+        cd uax14
+        go test -v -run TestOfficialUnicodeVectors
+        cd ..
+
+        echo "All conformance tests passed with official Unicode 17.0.0 test files!"
+
   conformance:
     name: Unicode Conformance Tests
     runs-on: ubuntu-latest
@@ -68,8 +159,9 @@ jobs:
     - name: UAX #14 - Line Breaking Tests
       run: |
         cd uax14
-        go test -v -run TestOfficialUnicodeVectors
         go test -v -run TestEdgeCases
+        go test -v -run TestUnicodeControlCharacters
+        go test -v -run TestAsianScripts
 
     - name: UAX #29 - Text Segmentation Conformance Tests
       run: |
