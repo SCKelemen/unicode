@@ -152,7 +152,7 @@ go test -bench=.
 
 We test against the official [LineBreakTest.txt](https://www.unicode.org/Public/UCD/latest/ucd/auxiliary/LineBreakTest.txt) provided by the Unicode Consortium.
 
-**Results**: 78.5% pass rate (15,180 / 19,338 tests)
+**Results**: 78.5% pass rate (15,186 / 19,338 tests)
 
 ### Character Classification
 
