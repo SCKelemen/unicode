@@ -4347,6 +4347,26 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 
 		action := getBreakAction(prevClass, currClass)
 
+		// LB8: Break before any character following ZW, even with intervening spaces
+		// This overrides pair table (e.g., SP × CL is BreakProhibited, but ZW SP CL should break after SP)
+		if lastNonSpaceClass == ClassZW && prevClass == ClassSP && currClass != ClassSP {
+			bytePos := len(string(runes[:i]))
+			breakPoints = append(breakPoints, bytePos)
+			// Skip the switch statement to avoid adding duplicate breaks
+			// Update prevClass and continue
+			if !isClassOrVariant(currClass, ClassCM) && currClass != ClassZWJ && currClass != ClassSA {
+				prevClass = currClass
+				if currClass != ClassSP {
+					lastNonSpaceClass = currClass
+				}
+			} else if (isClassOrVariant(currClass, ClassCM) || currClass == ClassZWJ) &&
+				(prevClass == ClassSP || prevClass == ClassZW) {
+				prevClass = ClassAL
+				lastNonSpaceClass = ClassAL
+			}
+			continue
+		}
+
 		// Only add break points for:
 		// 1. Mandatory breaks (newlines, etc.)
 		// 2. Spaces (word boundaries)
