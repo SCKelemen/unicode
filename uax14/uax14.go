@@ -4421,8 +4421,8 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 						// Found the base character
 						baseClass = checkClass
 						// Extended_Pictographic ranges (simplified - covers main emoji blocks)
-						if (checkRune >= 0x1F000 && checkRune <= 0x1FFFD) || // Various emoji blocks
-							(checkRune >= 0x2600 && checkRune <= 0x27BF) { // Miscellaneous Symbols
+						// Only include ranges that are definitively ExtPict in Unicode
+						if checkRune >= 0x1F000 && checkRune <= 0x1FFFD { // Emoji and pictographic blocks
 							isExtPict = true
 						}
 						break
@@ -4448,8 +4448,9 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 				}
 			}
 
-			if currClass == ClassEM && (baseClass == ClassXX || (baseClass == ClassID && isExtPict)) {
-				// Don't break - EM attaches to emoji base (ExtPict)
+			if currClass == ClassEM && (baseClass == ClassXX || isExtPict) {
+				// LB30: Don't break between Emoji Base (Extended_Pictographic) and Emoji Modifier
+				// Check both baseClass==XX and isExtPict (for misclassified ExtPict characters)
 			} else if (currClass == ClassVF || currClass == ClassVI) &&
 				(baseClass == ClassAK || baseClass == ClassAS || isDottedCircleVF) {
 				// LB28.11/28.12: Do not break between Aksara/DottedCircle and Virama
