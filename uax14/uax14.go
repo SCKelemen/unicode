@@ -4386,10 +4386,18 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 				// Zero-width space always allows break
 				bytePos := len(string(runes[:i]))
 				breakPoints = append(breakPoints, bytePos)
-			} else if prevClass == ClassHY || prevClass == ClassCB || prevClass == ClassBA || prevClass == ClassB2 {
+			} else if prevClass == ClassCB {
+				// CB (Contingent Break): Break opportunity contingent on additional info
+				// Unlike HY, CB is not a hyphen and should follow pair table
+				// If pair table says BreakDirect, add the break
+				if currClass != ClassSP && currClass != ClassZW && currClass != ClassCM {
+					bytePos := len(string(runes[:i]))
+					breakPoints = append(breakPoints, bytePos)
+				}
+			} else if prevClass == ClassHY || prevClass == ClassBA || prevClass == ClassB2 {
 				// Explicit break opportunities (hyphens, soft hyphens, BA, B2)
 				// For BA/B2: Break after, but not immediately before SP, CM, or other special chars
-				// For HY/CB: Respect the hyphens property
+				// For HY: Respect the hyphens property
 				isSoftHyphen := i > 0 && runes[i-1] == '\u00AD'
 
 				if prevClass == ClassBA || prevClass == ClassB2 {
