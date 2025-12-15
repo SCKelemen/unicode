@@ -78,8 +78,8 @@ func getSentenceBreakClass(r rune) SentenceBreakClass {
 		return SBSContinue
 	}
 
-	// Close (closing punctuation)
-	if unicode.Is(unicode.Pe, r) || unicode.Is(unicode.Pf, r) {
+	// Close (closing punctuation - includes Pe, Pf, Ps, Pi, and some Po)
+	if unicode.Is(unicode.Pe, r) || unicode.Is(unicode.Pf, r) || unicode.Is(unicode.Ps, r) || unicode.Is(unicode.Pi, r) {
 		return SBClose
 	}
 	if r == 0x0022 || r == 0x0027 || r == 0x00BB || r == 0x2019 || r == 0x201D || r == 0x203A || r == 0x2E03 || r == 0x2E05 ||
@@ -144,41 +144,33 @@ func FindSentenceBreaks(text string) []int {
 	breaks := []int{0} // SB1: Break at start
 
 	for i := 1; i < len(runes); i++ {
-		curr := classes[i]
-
-		// SB5: Treat Extend and Format as transparent (never break before them)
-		if curr == SBFormat || curr == SBExtend {
-			continue
-		}
-
-		// Get previous non-format/extend character
+		// Get previous non-Format/Extend character for most rules (SB5)
 		prevIdx := i - 1
-		for prevIdx >= 0 && (classes[prevIdx] == SBFormat || classes[prevIdx] == SBExtend) {
+		for prevIdx > 0 && (classes[prevIdx] == SBFormat || classes[prevIdx] == SBExtend) {
 			prevIdx--
-		}
-		if prevIdx < 0 {
-			prevIdx = 0
 		}
 
 		prev := classes[prevIdx]
+		curr := classes[i]
 
-		shouldBreak := true
+		shouldBreak := false // SB998: Default is no break
 
 		// SB3: Don't break within CRLF
 		if classes[i-1] == SBCR && curr == SBLF {
 			shouldBreak = false
-		} else if prev == SBCR || prev == SBLF || prev == SBSep {
-			// SB4: Break after paragraph separators
+		} else if classes[i-1] == SBCR || classes[i-1] == SBLF || classes[i-1] == SBSep {
+			// SB4: Break after paragraph separators (check immediately previous, not prev with Format/Extend skipped)
+			// This rule takes precedence over SB5, so we break even if curr is Format/Extend
 			shouldBreak = true
-		} else if curr == SBCR || curr == SBLF || curr == SBSep {
-			// Check if we're in a sentence termination sequence
-			// This is complex - for now, break before separators unless after ATerm/STerm
-			shouldBreak = true
+		} else if curr == SBFormat || curr == SBExtend {
+			// SB5: Ignore Format and Extend (but not after paragraph separators)
+			shouldBreak = false
 		} else if prev == SBATerm && curr == SBNumeric {
 			// SB6: ATerm × Numeric
 			shouldBreak = false
 		} else if (prev == SBUpper || prev == SBLower) && curr == SBATerm {
-			// Check SB7: (Upper | Lower) ATerm × Upper
+			// SB7: (Upper | Lower) ATerm × Upper
+			// Need to check if followed by Upper
 			nextIdx := i + 1
 			for nextIdx < len(runes) && (classes[nextIdx] == SBFormat || classes[nextIdx] == SBExtend) {
 				nextIdx++
@@ -186,33 +178,131 @@ func FindSentenceBreaks(text string) []int {
 			if nextIdx < len(runes) && classes[nextIdx] == SBUpper {
 				shouldBreak = false
 			}
-		} else if prev == SBATerm || prev == SBSTerm {
-			// Check for closing punctuation and spaces after term
-			j := i
-			for j < len(runes) && (classes[j] == SBClose || classes[j] == SBSp || classes[j] == SBFormat || classes[j] == SBExtend) {
-				j++
-			}
+		} else if prev == SBATerm {
+			// Check ATerm-related rules (SB7, SB8, SB8a, SB9, SB10, SB11)
 
-			if j < len(runes) {
-				next := classes[j]
-
-				// SB8a: (STerm | ATerm) Close* Sp* × (SContinue | STerm | ATerm)
-				if next == SBSContinue || next == SBSTerm || next == SBATerm {
+			// SB9: ATerm Close* × (Close | Sp | Sep | CR | LF)
+			if curr == SBClose || curr == SBSp || curr == SBSep || curr == SBCR || curr == SBLF {
+				shouldBreak = false
+			} else if curr == SBUpper {
+				// SB7: (Upper | Lower) ATerm × Upper
+				// Check if there's a Letter before ATerm
+				prevPrevIdx := prevIdx - 1
+				for prevPrevIdx > 0 && (classes[prevPrevIdx] == SBFormat || classes[prevPrevIdx] == SBExtend) {
+					prevPrevIdx--
+				}
+				if prevPrevIdx >= 0 && (classes[prevPrevIdx] == SBUpper || classes[prevPrevIdx] == SBLower) {
+					// Pattern matches: Letter ATerm Upper - don't break (SB7)
 					shouldBreak = false
-				} else if next == SBLower {
-					// SB8: Check for lowercase following
-					shouldBreak = false
-				} else if curr == SBClose || curr == SBSp {
-					// SB9/SB10: (STerm | ATerm) Close* × (Close | Sp | Sep)
-					shouldBreak = false
-				} else if j == len(runes) || next == SBCR || next == SBLF || next == SBSep {
-					// SB11: Break after complete sentence unit
+				} else {
+					// No letter before ATerm - SB11 will break
 					shouldBreak = true
 				}
 			} else {
-				// End of text
-				shouldBreak = true
+				// For other characters after ATerm, check SB8, SB8a, SB11
+				// Look forward through Close* Sp* for what follows
+				j := i
+				for j < len(runes) && (classes[j] == SBClose || classes[j] == SBSp || classes[j] == SBFormat || classes[j] == SBExtend) {
+					j++
+				}
+
+				if j >= len(runes) {
+					// SB11: ATerm Close* Sp* <end of text>
+					shouldBreak = true
+				} else {
+					next := classes[j]
+					// SB8a: (STerm | ATerm) Close* Sp* × (SContinue | STerm | ATerm)
+					if next == SBSContinue || next == SBSTerm || next == SBATerm {
+						shouldBreak = false
+					} else if next == SBLower {
+						// SB8: ATerm Close* Sp* × (¬(OLetter | Upper | Lower | Sep | CR | LF | STerm | ATerm))* Lower
+						shouldBreak = false
+					} else {
+						// SB11: Break after ATerm Close* Sp* if followed by anything else
+						shouldBreak = true
+					}
+				}
 			}
+		} else if prev == SBClose || prev == SBSp {
+			// When prev is Close or Sp, check if there's ATerm/STerm before it
+			// Look back through Close* Sp* to find ATerm or STerm
+			hasSpBeforePrev := false
+			j := prevIdx - 1
+			// Check if there's any Sp between ATerm and prev (not including curr)
+			for j >= 0 && (classes[j] == SBClose || classes[j] == SBSp || classes[j] == SBFormat || classes[j] == SBExtend) {
+				if classes[j] == SBSp {
+					hasSpBeforePrev = true
+				}
+				j--
+			}
+			if j >= 0 && (classes[j] == SBATerm || classes[j] == SBSTerm) {
+				// Found ATerm/STerm before Close* Sp*
+				// If prev is Close and there's Sp before it, we're past the break point (already broken at Sp)
+				if prev == SBClose && hasSpBeforePrev {
+					// Pattern: ATerm Close* Sp Close* × curr
+					// Break point was after Sp, not here
+					shouldBreak = false
+				} else if prev == SBSp && curr == SBClose {
+					// Pattern: ATerm Close* Sp × Close
+					// Check if there's lowercase ahead (SB8)
+					k := i + 1
+					for k < len(runes) && (classes[k] == SBClose || classes[k] == SBFormat || classes[k] == SBExtend) {
+						k++
+					}
+					if k < len(runes) && classes[k] == SBLower {
+						// SB8: ATerm Close* Sp Close* × Lower - don't break
+						shouldBreak = false
+					} else {
+						// SB10 doesn't cover Close after Sp, so SB11 breaks
+						shouldBreak = true
+					}
+				} else if curr == SBLower {
+					// SB8: ATerm Close* Sp* × Lower (don't break before lowercase)
+					shouldBreak = false
+				} else if curr == SBSContinue || curr == SBSTerm || curr == SBATerm {
+					// SB8a: (ATerm|STerm) Close* Sp* × (SContinue | STerm | ATerm)
+					shouldBreak = false
+				} else if (curr == SBSp || curr == SBSep || curr == SBCR || curr == SBLF) {
+					// SB10: ATerm Close* Sp* × (Sp | Sep | CR | LF) - don't break
+					shouldBreak = false
+				} else if curr == SBClose && !hasSpBeforePrev {
+					// SB9: ATerm Close* × Close (no Sp in between) - don't break
+					shouldBreak = false
+				} else {
+					// SB11: Break after (ATerm|STerm) Close* Sp* before other characters
+					shouldBreak = true
+				}
+			}
+			// If no ATerm/STerm before Close*/Sp*, default (no break) applies
+		} else if prev == SBSTerm {
+			// Check STerm-related rules (SB8a, SB9, SB10, SB11)
+			// SB9: STerm Close* × (Close | Sp | Sep | CR | LF)
+			if curr == SBClose || curr == SBSp || curr == SBSep || curr == SBCR || curr == SBLF {
+				shouldBreak = false
+			} else {
+				// Look forward through Close* Sp* for what follows
+				j := i
+				for j < len(runes) && (classes[j] == SBClose || classes[j] == SBSp || classes[j] == SBFormat || classes[j] == SBExtend) {
+					j++
+				}
+
+				if j >= len(runes) {
+					// SB11: STerm Close* Sp* <end of text>
+					shouldBreak = true
+				} else {
+					next := classes[j]
+					// SB8a: (STerm | ATerm) Close* Sp* × (SContinue | STerm | ATerm)
+					if next == SBSContinue || next == SBSTerm || next == SBATerm {
+						shouldBreak = false
+					} else {
+						// SB11: Break after STerm Close* Sp*
+						shouldBreak = true
+					}
+				}
+			}
+		} else {
+			// SB998: Don't break by default
+			shouldBreak = false
 		}
 
 		if shouldBreak {
