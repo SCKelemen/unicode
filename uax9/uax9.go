@@ -279,6 +279,9 @@ func Reorder(text string, baseDir Direction) string {
 	// Adjust empty isolate formatting character levels to match surrounding context
 	adjustEmptyIsolateFormattingLevels(classes, originalClasses, levels, matchingPDI, paraLevel)
 
+	// Adjust ALL isolate formatting character levels to match surrounding context
+	adjustAllIsolateFormattingLevels(classes, levels, matchingPDI, paraLevel)
+
 	// Apply L1: Reset levels for segment/paragraph separators and trailing whitespace
 	applyL1(originalClasses, levels, paraLevel)
 
@@ -428,6 +431,85 @@ func adjustEmptyIsolateFormattingLevels(classes []BidiClass, originalClasses []B
 					}
 				}
 				// else: one or both sides at paragraph level → stay at paragraph level
+			}
+		}
+	}
+}
+
+// adjustAllIsolateFormattingLevels adjusts ALL isolate formatting characters to match
+// their surrounding resolved context. This applies after empty isolate adjustment.
+func adjustAllIsolateFormattingLevels(classes []BidiClass, levels []int, matchingPDI []int, paraLevel int) {
+	n := len(classes)
+
+	for i := 0; i < n; i++ {
+		class := classes[i]
+		// Check if this is a MATCHED isolate initiator currently at paragraph level
+		if (class == ClassLRI || class == ClassRLI || class == ClassFSI) && matchingPDI[i] != -1 && levels[i] == paraLevel {
+			pdiIdx := matchingPDI[i]
+
+			// Check if it's an empty isolate (already handled by adjustEmptyIsolateFormattingLevels)
+			isEmpty := true
+			for j := i + 1; j < pdiIdx; j++ {
+				if levels[j] >= 0 {
+					isEmpty = false
+					break
+				}
+			}
+
+			// Skip empty isolates - they're handled by the previous function
+			if isEmpty {
+				continue
+			}
+
+			// Also check if the corresponding PDI is at paragraph level
+			if levels[pdiIdx] == paraLevel {
+				// Find the left context (skip other isolate formatting characters)
+				leftLevel := paraLevel
+				for j := i - 1; j >= 0; j-- {
+					if levels[j] >= 0 {
+						c := classes[j]
+						// Skip isolate formatting characters
+						if c == ClassLRI || c == ClassRLI || c == ClassFSI || c == ClassPDI {
+							continue
+						}
+						leftLevel = levels[j]
+						break
+					}
+				}
+
+				// Find the right context (skip other isolate formatting characters)
+				rightLevel := paraLevel
+				for j := pdiIdx + 1; j < n; j++ {
+					if levels[j] >= 0 {
+						c := classes[j]
+						// Skip isolate formatting characters
+						if c == ClassLRI || c == ClassRLI || c == ClassFSI || c == ClassPDI {
+							continue
+						}
+						rightLevel = levels[j]
+						break
+					}
+				}
+
+				// Adjust level based on surrounding context
+				// Only adjust when BOTH sides have non-paragraph levels
+				if leftLevel != paraLevel && rightLevel != paraLevel {
+					// Both sides at non-paragraph levels
+					if leftLevel == rightLevel {
+						// Both at same level → match that level for both initiator and PDI
+						levels[i] = leftLevel
+						levels[pdiIdx] = leftLevel
+					} else {
+						// Different levels → use minimum (closer to paragraph)
+						minLevel := leftLevel
+						if rightLevel < minLevel {
+							minLevel = rightLevel
+						}
+						levels[i] = minLevel
+						levels[pdiIdx] = minLevel
+					}
+				}
+				// else: one or both sides at paragraph level → keep current level (don't adjust)
 			}
 		}
 	}
