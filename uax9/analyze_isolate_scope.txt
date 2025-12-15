@@ -1,0 +1,24 @@
+Analyzing FSI isolate scope issue:
+
+Test case: FSI EN R (para=0)
+Expected: [0, 2, 1]
+Actual:   [0, 2, 3]
+
+Breakdown:
+- FSI determines direction by looking at first strong (EN), becomes LRI
+- Creates level 2 isolate (even level for LTR)
+- EN gets level 2 (inside isolate)
+- R currently gets level 2, then implicit -> 3
+
+Expected behavior suggests:
+- R should be at level 1 (outside isolate, RTL in LTR paragraph)
+
+Hypothesis: When FSI has no matching PDI, the isolate scope should terminate 
+when encountering a strong character of the opposite direction.
+
+For FSI (acting as LRI) with first strong EN:
+- EN is LTR, inside the isolate
+- R is RTL, opposite direction -> terminates isolate scope
+- R should be at outer level (0), then implicit raises to 1
+
+This would mean we need to track when to "auto-close" unmatched isolates.
