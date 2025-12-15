@@ -4448,6 +4448,16 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 				}
 			}
 
+			// Check for LB28.11: AP × DottedCircle
+			isDottedCircleAP := false
+			if prevClass == ClassAP && i > 0 {
+				// Check if current character is DottedCircle
+				currRune := runes[i]
+				if currRune == 0x25CC { // DOTTED CIRCLE
+					isDottedCircleAP = true
+				}
+			}
+
 			if currClass == ClassEM && (baseClass == ClassXX || isExtPict) {
 				// LB30: Don't break between Emoji Base (Extended_Pictographic) and Emoji Modifier
 				// Check both baseClass==XX and isExtPict (for misclassified ExtPict characters)
@@ -4455,6 +4465,10 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 				(baseClass == ClassAK || baseClass == ClassAS || isDottedCircleVF) {
 				// LB28.11/28.12: Do not break between Aksara/DottedCircle and Virama
 				// (AK | AS | DottedCircle) × (VF | VI)
+			} else if prevClass == ClassAP && (isDottedCircleAP || currClass == ClassAK ||
+				currClass == ClassAS) {
+				// LB28.11: AP × (AK | AS | DottedCircle)
+				// Aksara Prebase attaches to following Aksara or DottedCircle
 			} else if prevClass == ClassZW {
 				// Zero-width space always allows break
 				bytePos := len(string(runes[:i]))
