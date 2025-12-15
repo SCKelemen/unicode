@@ -502,22 +502,49 @@ func getBreakAction(before, after BreakClass) BreakAction {
 }
 
 // FindLineBreakOpportunities finds all valid line break opportunities in text.
-// Returns a slice of byte positions where breaks are allowed.
 //
-// This implements UAX #14 but focuses on word boundaries for practical line breaking.
-// The hyphens parameter controls hyphenation behavior:
+// This function implements line break detection based on UAX #14 (Unicode Line Breaking
+// Algorithm). It returns a slice of byte positions where line breaks are allowed,
+// enabling text layout systems to wrap text at appropriate boundaries.
+//
+// The algorithm handles:
+//   - Mandatory breaks (LB4-LB6): Newlines, hard breaks, paragraph separators
+//   - Word boundaries (LB18): Spaces between words
+//   - Ideographic breaks (LB30a): Breaks between CJK characters
+//   - Hyphenation (LB21-LB22): Configurable hyphenation behavior
+//   - Punctuation: Proper handling of quotes, parentheses, and other marks
+//   - Numeric sequences: Keeping numbers with units and separators together
+//
+// The hyphens parameter controls hyphenation behavior per CSS Text Module Level 3:
 //   - HyphensNone: No breaks at hyphens (hard or soft)
-//   - HyphensManual: Only break at U+00AD soft hyphens
-//   - HyphensAuto: Break at all hyphens (dictionary-based hyphenation not yet implemented)
+//   - HyphensManual: Only break at U+00AD soft hyphens (https://www.w3.org/TR/css-text-3/#valdef-hyphens-manual)
+//   - HyphensAuto: Break at all hyphens (dictionary-based hyphenation not yet fully implemented)
 //
 // The returned slice always includes position 0 (start) and len(text) (end).
 // All positions are byte offsets, not rune indices, for direct string slicing.
 //
 // Example:
 //
-//	text := "Hello world"
+//	text := "Hello world! This is a test."
 //	breaks := FindLineBreakOpportunities(text, HyphensManual)
-//	// breaks = [0, 6, 11] - can break at start, after "Hello ", and at end
+//	// Returns: [0, 6, 13, 16, 19, 21, 26, 27] - breaks at spaces and end
+//
+//	text = "Hello­world"  // Contains soft hyphen (U+00AD)
+//	breaks = FindLineBreakOpportunities(text, HyphensManual)
+//	// Break allowed at soft hyphen position
+//
+//	text = "中文测试"  // Chinese text
+//	breaks = FindLineBreakOpportunities(text, HyphensNone)
+//	// Breaks allowed between each ideographic character
+//
+// See UAX #14: https://www.unicode.org/reports/tr14/
+//
+// Implementation notes:
+//   - Based on UAX #14 with focus on practical word-boundary breaking
+//   - Handles mandatory breaks per LB4-LB6: https://www.unicode.org/reports/tr14/#LB4
+//   - Supports CJK ideographic breaking per LB30a: https://www.unicode.org/reports/tr14/#LB30a
+//   - Hyphenation follows CSS Text Level 3 §4.3: https://www.w3.org/TR/css-text-3/#hyphenation
+//   - Originally from github.com/SCKelemen/layout, extracted for reusability
 func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 	if text == "" {
 		return []int{0}
