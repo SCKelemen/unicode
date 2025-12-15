@@ -408,7 +408,50 @@ func processExplicitLevels(classes []BidiClass, levels []int, paraLevel int) {
 			currentLevel := stack[len(stack)-1].level
 			override := stack[len(stack)-1].override
 
-			levels[i] = currentLevel
+			// Special handling for NSM: inherit level from preceding non-removed character
+			// if a closing boundary (PDF/PDI) actually closed something (level decreased),
+			// but NOT if we crossed an override boundary (RLO/LRO)
+			isNSM := class == ClassNSM
+
+			if isNSM {
+				// Check if there's a PDF or PDI immediately before (skipping removed chars)
+				crossedClosing := false
+				crossedOverride := false
+				precedingLevel := -1
+
+				// First pass: find preceding non-removed character
+				for j := i - 1; j >= 0; j-- {
+					if levels[j] >= 0 {
+						precedingLevel = levels[j]
+						break
+					}
+					if classes[j] == ClassPDF || classes[j] == ClassPDI {
+						crossedClosing = true
+					}
+				}
+
+				// Second pass: check if there's an override in the closed sequence
+				// Check all positions from start to current for RLO/LRO
+				if crossedClosing {
+					for j := 0; j < i; j++ {
+						if classes[j] == ClassRLO || classes[j] == ClassLRO {
+							crossedOverride = true
+							break
+						}
+					}
+				}
+
+				// Inherit if: crossed a closer AND current level decreased AND no override
+				if crossedClosing && precedingLevel >= 0 && currentLevel < precedingLevel && !crossedOverride {
+					// NSM crosses a non-override closing boundary that decreased the level
+					levels[i] = precedingLevel
+				} else {
+					// NSM is inside an embedding/isolate or after override
+					levels[i] = currentLevel
+				}
+			} else {
+				levels[i] = currentLevel
+			}
 
 			// Apply override if present
 			if override == ClassL {
@@ -532,27 +575,35 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 
 	// W5: Sequence of ET adjacent to EN -> EN
 	// A sequence of ET is adjacent to EN if there's an EN before or after the sequence
-	// Note: Skip removed characters (BN, PDF, etc.) when looking for adjacency
+	// Note: Skip removed characters AND only look at same embedding level
 	for i := 0; i < n; i++ {
 		if classes[i] == ClassET {
+			currentLevel := levels[i]
+			if currentLevel < 0 {
+				continue // Skip removed ET
+			}
+
 			hasEN := false
 
-			// Find the start of the ET sequence
+			// Find the start of the ET sequence at this level
 			start := i
-			for start > 0 && classes[start-1] == ClassET {
+			for start > 0 && classes[start-1] == ClassET && levels[start-1] == currentLevel {
 				start--
 			}
 
-			// Find the end of the ET sequence
+			// Find the end of the ET sequence at this level
 			end := i
-			for end < n-1 && classes[end+1] == ClassET {
+			for end < n-1 && classes[end+1] == ClassET && levels[end+1] == currentLevel {
 				end++
 			}
 
-			// Check if there's an EN before the sequence (skip removed characters)
+			// Check if there's an EN before the sequence at same level (skip removed)
 			for j := start - 1; j >= 0; j-- {
 				if levels[j] < 0 {
 					continue // Skip removed characters
+				}
+				if levels[j] != currentLevel {
+					break // Different level, stop searching
 				}
 				if classes[j] == ClassEN {
 					hasEN = true
@@ -560,11 +611,14 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 				break
 			}
 
-			// Check if there's an EN after the sequence (skip removed characters)
+			// Check if there's an EN after the sequence at same level (skip removed)
 			if !hasEN {
 				for j := end + 1; j < n; j++ {
 					if levels[j] < 0 {
 						continue // Skip removed characters
+					}
+					if levels[j] != currentLevel {
+						break // Different level, stop searching
 					}
 					if classes[j] == ClassEN {
 						hasEN = true
@@ -573,7 +627,7 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 				}
 			}
 
-			// If adjacent to EN, mark all ET in sequence as EN
+			// If adjacent to EN at same level, mark all ET in sequence as EN
 			if hasEN {
 				for j := start; j <= end; j++ {
 					if classes[j] == ClassET {
