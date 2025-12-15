@@ -2,7 +2,7 @@
 
 Implementation of [UAX #9: Unicode Bidirectional Algorithm](https://www.unicode.org/reports/tr9/) in Go.
 
-**Status:** Highly Conformant (99.97% pass rate on official Unicode test vectors)
+**Status:** Highly Conformant (99.98% pass rate on official Unicode test vectors)
 
 ## Overview
 
@@ -70,9 +70,9 @@ go test -v
 ### Test Results
 
 - **Total tests**: 513,494
-- **Passed**: 513,330
-- **Pass rate**: 99.97%
-- **Failed**: 164 (complex edge cases involving separators and embedding levels)
+- **Passed**: 513,410
+- **Pass rate**: 99.98%
+- **Failed**: 84 (complex edge cases involving isolate formatting characters)
 
 The test suite includes:
 - Official Unicode BidiTest.txt (513,494 test cases)
@@ -81,13 +81,13 @@ The test suite includes:
 
 ## Known Limitations
 
-- 0.03% of edge cases fail (164 out of 513,494 tests)
+- 0.02% of edge cases fail (84 out of 513,494 tests)
 - Most failures involve:
-  - Separator characters (ES, CS) inside embeddings with adjacent numeric types
-  - Complex interactions between weak type resolution and embedding boundaries
-  - Edge cases with multiple embedding levels and separator positioning
+  - Empty isolates (FSI...PDI) in RTL contexts
+  - Isolate formatting characters (FSI, RLI, LRI, PDI) level adjustments
+  - Interaction between isolate boundaries and surrounding strong characters
 
-The implementation is production-ready and handles 99.97% of Unicode's comprehensive test cases, including all common real-world bidirectional text scenarios. The remaining failures are extremely rare edge cases involving complex combinations of embedding levels, separator characters, and numeric type adjacency.
+The implementation is production-ready and handles 99.98% of Unicode's comprehensive test cases, including all common real-world bidirectional text scenarios. The remaining failures are extremely rare edge cases involving empty isolates and isolate formatting character level adjustments in specific directional contexts.
 
 ## Implementation Details
 

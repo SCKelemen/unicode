@@ -385,8 +385,10 @@ func processExplicitLevels(classes []BidiClass, levels []int, paraLevel int) {
 
 		case ClassPDI:
 			// X6a: Pop directional isolate
+			matched := false
 			if overflowIsolateCount > 0 {
 				overflowIsolateCount--
+				matched = true
 			} else if validIsolateCount > 0 {
 				overflowEmbeddingCount = 0
 				for len(stack) > 1 && !stack[len(stack)-1].isolate {
@@ -396,8 +398,14 @@ func processExplicitLevels(classes []BidiClass, levels []int, paraLevel int) {
 					stack = stack[:len(stack)-1]
 				}
 				validIsolateCount--
+				matched = true
 			}
 			levels[i] = stack[len(stack)-1].level
+
+			// Unmatched PDI is treated as ON for neutral resolution
+			if !matched {
+				classes[i] = ClassON
+			}
 
 		case ClassBN:
 			// BN characters are removed from reordering
@@ -517,34 +525,45 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 	}
 
 	// W4: Single separator between numbers -> number
-	// Skip removed characters when looking for adjacent numbers
+	// Skip removed characters and only look at same embedding level
 	for i := 0; i < n; i++ {
 		if classes[i] == ClassES || classes[i] == ClassCS {
-			// Look backward for number (skip removed characters)
+			currentLevel := levels[i]
+			if currentLevel < 0 {
+				continue // Skip removed separators
+			}
+
+			// Look backward for number at same level (skip removed characters)
 			var prevClass BidiClass = -1
 			for j := i - 1; j >= 0; j-- {
 				if levels[j] < 0 {
-					continue
+					continue // Skip removed
+				}
+				if levels[j] != currentLevel {
+					break // Different level, stop searching
 				}
 				prevClass = classes[j]
 				break
 			}
 
-			// Look forward for number (skip removed characters)
+			// Look forward for number at same level (skip removed characters)
 			var nextClass BidiClass = -1
 			for j := i + 1; j < n; j++ {
 				if levels[j] < 0 {
-					continue
+					continue // Skip removed
+				}
+				if levels[j] != currentLevel {
+					break // Different level, stop searching
 				}
 				nextClass = classes[j]
 				break
 			}
 
-			// ES between ENs -> EN
+			// ES between ENs at same level -> EN
 			if classes[i] == ClassES && prevClass == ClassEN && nextClass == ClassEN {
 				classes[i] = ClassEN
 			}
-			// CS between same number types -> that type
+			// CS between same number types at same level -> that type
 			if classes[i] == ClassCS {
 				if prevClass == ClassEN && nextClass == ClassEN {
 					classes[i] = ClassEN
@@ -699,12 +718,11 @@ func resolveNeutralTypes(classes []BidiClass, levels []int, paraLevel int) {
 	}
 
 	// N1 and N2: Neutrals take direction from surrounding strong types
-	// Note: PDI is treated as ON for neutral resolution when unmatched
+	// Note: Isolate formatting characters (RLI, LRI, FSI, PDI) keep their types
 	// Search within same level run (same embedding level), use sos/eos at boundaries
 	for i := 0; i < n; i++ {
 		if classes[i] == ClassWS || classes[i] == ClassON ||
-			classes[i] == ClassB || classes[i] == ClassS ||
-			classes[i] == ClassPDI {
+			classes[i] == ClassB || classes[i] == ClassS {
 
 			currentLevel := levels[i]
 			if currentLevel < 0 {
