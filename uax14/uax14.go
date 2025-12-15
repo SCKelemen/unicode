@@ -214,6 +214,49 @@ func applyEAWidthVariant(class BreakClass, r rune) BreakClass {
 	}
 }
 
+// isClassOrVariant checks if a class matches a base class or its EA width variant.
+// For example, isClassOrVariant(ClassAI_EA, ClassAI) returns true.
+func isClassOrVariant(class, baseClass BreakClass) bool {
+	if class == baseClass {
+		return true
+	}
+	// Check EA width variants
+	switch baseClass {
+	case ClassAI:
+		return class == ClassAI_EA
+	case ClassAL:
+		return class == ClassAL_EA
+	case ClassBA:
+		return class == ClassBA_EA
+	case ClassCL:
+		return class == ClassCL_EA
+	case ClassCM:
+		return class == ClassCM_EA
+	case ClassEB:
+		return class == ClassEB_EA
+	case ClassEX:
+		return class == ClassEX_EA
+	case ClassGL:
+		return class == ClassGL_EA
+	case ClassID:
+		return class == ClassID_EA
+	case ClassIN:
+		return class == ClassIN_EA
+	case ClassNS:
+		return class == ClassNS_EA
+	case ClassOP:
+		return class == ClassOP_EA
+	case ClassPO:
+		return class == ClassPO_EA
+	case ClassPR:
+		return class == ClassPR_EA
+	case ClassQU:
+		return class == ClassQU_Pi || class == ClassQU_Pf
+	default:
+		return false
+	}
+}
+
 // getBreakClass returns the line breaking class for a rune.
 // Uses official Unicode LineBreak.txt property data and East Asian Width.
 // Reference: http://www.unicode.org/reports/tr14/#Table1
@@ -4180,6 +4223,15 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 	for i := 1; i < len(runes); i++ {
 		currClass := getBreakClass(runes[i])
 
+		// LB9: SA characters that are combining marks (Mn, Mc) should be treated as CM
+		// The official data distinguishes SA_Mn and SA_Mc, but our table consolidates them
+		if currClass == ClassSA {
+			r := runes[i]
+			if unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Mc, r) {
+				currClass = ClassCM
+			}
+		}
+
 		// LB4, LB5: Mandatory breaks - handle BEFORE consulting pair table
 		// Always break after BK, CR (except before LF), LF, NL
 		if prevClass == ClassBK || prevClass == ClassLF || prevClass == ClassNL {
@@ -4228,24 +4280,24 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			// Indirect break (usually spaces) - add for word boundaries
 			// But respect LB6, LB13, LB14
 			if prevClass == ClassSP {
+				// LB18: Break after spaces (word boundaries)
 				// LB14: Do not break after OP, even if spaces intervene (OP SP* ×)
-				// LB19: Do not break before or after QU (× SP* QU and QU SP* ×)
-				if lastNonSpaceClass == ClassOP || lastNonSpaceClass == ClassQU {
+				// LB17: Do not break within "—", even with intervening spaces (B2 SP* B2)
+				// LB19: QU has context-specific rules (after AL/HL), handled by pair table
+				if isClassOrVariant(lastNonSpaceClass, ClassOP) || isClassOrVariant(lastNonSpaceClass, ClassQU) {
 					// Don't break - we're in "OP SP*" or "QU SP*" sequence
-				} else if currClass == ClassQU && lastNonSpaceClass != ClassAI {
-					// LB19: Do not break before QU (× SP* QU), except after AI
-				} else if currClass == ClassGL && lastNonSpaceClass != ClassAI {
-					// Do not break before GL (× SP* GL), except after AI
+				} else if lastNonSpaceClass == ClassB2 && currClass == ClassB2 {
+					// LB17: Don't break within "B2 SP* B2" (dashes with spaces)
 				} else if currClass == ClassBK || currClass == ClassCR || currClass == ClassLF ||
-					currClass == ClassNL || currClass == ClassCL || currClass == ClassCP ||
-					currClass == ClassEX || currClass == ClassIS || currClass == ClassSY ||
+					currClass == ClassNL || isClassOrVariant(currClass, ClassCL) || currClass == ClassCP ||
+					isClassOrVariant(currClass, ClassEX) || currClass == ClassIS || currClass == ClassSY ||
 					currClass == ClassWJ || currClass == ClassZW {
 					// LB6: Do not break before hard line breaks (BK, CR, LF, NL)
 					// LB7: Do not break before ZW (× ZW)
 					// LB11: Do not break before WJ (× WJ)
 					// LB13: Do not break before CL, CP, EX, IS, SY (closing punct)
+					// Note: GL intentionally NOT in this list - LB18 (break after space) applies for SP ÷ GL
 					// Note: NS removed - LB18 (break after space) overrides LB16 (× NS)
-					// Note: GL removed - handled above with AI exception
 				} else {
 					bytePos := len(string(runes[:i]))
 					breakPoints = append(breakPoints, bytePos)
@@ -4296,31 +4348,30 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 				}
 			} else if prevClass == ClassSP {
 				// LB18: Break after spaces (word boundaries)
-				// But respect LB6, LB7, LB11, LB12, LB13, LB14, LB19
+				// But respect LB6, LB7, LB11, LB13, LB14, LB17
 				// LB14: Do not break after OP, even if spaces intervene (OP SP* ×)
-				// LB19: Do not break before or after QU (× SP* QU and QU SP* ×)
-				if lastNonSpaceClass == ClassOP || lastNonSpaceClass == ClassQU {
+				// LB17: Do not break within "—", even with intervening spaces (B2 SP* B2)
+				// LB19: QU has context-specific rules (after AL/HL), handled by pair table
+				if isClassOrVariant(lastNonSpaceClass, ClassOP) || isClassOrVariant(lastNonSpaceClass, ClassQU) {
 					// Don't break - we're in "OP SP*" or "QU SP*" sequence
-				} else if currClass == ClassQU && lastNonSpaceClass != ClassAI {
-					// LB19: Do not break before QU (× SP* QU), except after AI
-				} else if currClass == ClassGL && lastNonSpaceClass != ClassAI {
-					// Do not break before GL (× SP* GL), except after AI
+				} else if lastNonSpaceClass == ClassB2 && currClass == ClassB2 {
+					// LB17: Don't break within "B2 SP* B2" (dashes with spaces)
 				} else if currClass == ClassBK || currClass == ClassCR || currClass == ClassLF ||
-					currClass == ClassNL || currClass == ClassCL || currClass == ClassCP ||
-					currClass == ClassEX || currClass == ClassIS || currClass == ClassSY ||
+					currClass == ClassNL || isClassOrVariant(currClass, ClassCL) || currClass == ClassCP ||
+					isClassOrVariant(currClass, ClassEX) || currClass == ClassIS || currClass == ClassSY ||
 					currClass == ClassWJ || currClass == ClassZW {
 					// LB6: Do not break before hard line breaks
 					// LB7: Do not break before ZW (× ZW)
 					// LB11: Do not break before WJ (× WJ)
 					// LB13: Do not break before CL, CP, EX, IS, SY
+					// Note: GL intentionally NOT in this list - LB18 (break after space) applies for SP ÷ GL
 					// Note: NS removed - LB18 (break after space) overrides LB16 (× NS)
-					// Note: GL removed - handled above with AI exception
 				} else {
 					bytePos := len(string(runes[:i]))
 					breakPoints = append(breakPoints, bytePos)
 				}
-			} else if prevClass == ClassID || currClass == ClassID ||
-				prevClass == ClassAI || currClass == ClassAI {
+			} else if isClassOrVariant(prevClass, ClassID) || isClassOrVariant(currClass, ClassID) ||
+				isClassOrVariant(prevClass, ClassAI) || isClassOrVariant(currClass, ClassAI) {
 				// Allow breaks involving ideographic and ambiguous East Asian characters
 				// when pairTable explicitly allows it (action == BreakDirect)
 				// This handles ID × ID, ID × AL, AI × ID, etc.
@@ -4342,8 +4393,10 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			}
 		}
 
-		// Update previous class (combining marks don't change it)
-		if currClass != ClassCM {
+		// LB9: Treat X (CM | ZWJ)* as if it were X
+		// Update previous class UNLESS current is combining mark, ZWJ, or SA
+		// SA (Southeast Asian) scripts often act as combining marks (SA_Mn, SA_Mc)
+		if !isClassOrVariant(currClass, ClassCM) && currClass != ClassZWJ && currClass != ClassSA {
 			prevClass = currClass
 			// Track last non-space class for LB14 (OP SP* ×)
 			if currClass != ClassSP {
