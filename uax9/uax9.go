@@ -731,6 +731,50 @@ func resolveWeakTypes(classes []BidiClass, levels []int) {
 
 // detectEmptyIsolates marks empty isolates (isolate initiator immediately followed by PDI)
 // Empty isolate formatting characters should be treated as neutrals for proper level resolution
+// determineMatchingIsolates implements BD9: determine matching PDI for each isolate initiator.
+// Returns two slices:
+// - matchingPDI[i] = index of matching PDI for isolate initiator at i, or -1 if not an initiator
+// - matchingInitiator[i] = index of matching initiator for PDI at i, or -1 if not a PDI
+func determineMatchingIsolates(classes []BidiClass) ([]int, []int) {
+	n := len(classes)
+	matchingPDI := make([]int, n)
+	matchingInitiator := make([]int, n)
+
+	// Initialize all to -1
+	for i := 0; i < n; i++ {
+		matchingPDI[i] = -1
+		matchingInitiator[i] = -1
+	}
+
+	// For each isolate initiator, find its matching PDI
+	for i := 0; i < n; i++ {
+		class := classes[i]
+		if class != ClassLRI && class != ClassRLI && class != ClassFSI {
+			continue
+		}
+
+		// Found an isolate initiator, search for matching PDI
+		depth := 1
+		for j := i + 1; j < n; j++ {
+			c := classes[j]
+			if c == ClassLRI || c == ClassRLI || c == ClassFSI {
+				depth++
+			} else if c == ClassPDI {
+				depth--
+				if depth == 0 {
+					// Found matching PDI
+					matchingPDI[i] = j
+					matchingInitiator[j] = i
+					break
+				}
+			}
+		}
+		// If no matching PDI found, matchingPDI[i] remains -1
+	}
+
+	return matchingPDI, matchingInitiator
+}
+
 func detectEmptyIsolates(classes []BidiClass, levels []int) []bool {
 	n := len(classes)
 	isEmptyIsolate := make([]bool, n)
