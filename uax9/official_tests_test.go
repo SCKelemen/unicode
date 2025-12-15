@@ -185,7 +185,7 @@ func computeLevels(classes []BidiClass, paraLevel int) []int {
 	}
 
 	// Adjust empty isolate formatting character levels to match surrounding context
-	adjustEmptyIsolateFormattingLevels(classes, levels, matchingPDI, paraLevel)
+	adjustEmptyIsolateFormattingLevels(classes, originalClasses, levels, matchingPDI, paraLevel)
 
 	// Apply L1 rule
 	applyL1(originalClasses, levels, paraLevel)

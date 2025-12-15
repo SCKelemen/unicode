@@ -277,7 +277,7 @@ func Reorder(text string, baseDir Direction) string {
 	}
 
 	// Adjust empty isolate formatting character levels to match surrounding context
-	adjustEmptyIsolateFormattingLevels(classes, levels, matchingPDI, paraLevel)
+	adjustEmptyIsolateFormattingLevels(classes, originalClasses, levels, matchingPDI, paraLevel)
 
 	// Apply L1: Reset levels for segment/paragraph separators and trailing whitespace
 	applyL1(originalClasses, levels, paraLevel)
@@ -288,7 +288,7 @@ func Reorder(text string, baseDir Direction) string {
 
 // adjustEmptyIsolateFormattingLevels adjusts empty isolate formatting characters to match
 // their surrounding resolved context. This applies after all W/N/I resolution is complete.
-func adjustEmptyIsolateFormattingLevels(classes []BidiClass, levels []int, matchingPDI []int, paraLevel int) {
+func adjustEmptyIsolateFormattingLevels(classes []BidiClass, originalClasses []BidiClass, levels []int, matchingPDI []int, paraLevel int) {
 	n := len(classes)
 
 	for i := 0; i < n; i++ {
@@ -306,30 +306,131 @@ func adjustEmptyIsolateFormattingLevels(classes []BidiClass, levels []int, match
 			}
 
 			if isEmpty {
-				// Adjust both initiator and PDI to match surrounding context
-				// Find the level from left context
+				// Empty isolates take the level based on their surrounding resolved context
+
+				// Find the left context (level, index, and resolved class)
+				// Skip over isolate formatting characters to find actual content
 				leftLevel := paraLevel
+				leftIdx := -1
 				for j := i - 1; j >= 0; j-- {
 					if levels[j] >= 0 {
+						c := classes[j]
+						// Skip isolate formatting characters
+						if c == ClassLRI || c == ClassRLI || c == ClassFSI || c == ClassPDI {
+							continue
+						}
 						leftLevel = levels[j]
+						leftIdx = j
 						break
 					}
 				}
 
-				// Find the level from right context
+				// Find the right context (level, index, and resolved class)
+				// Skip over isolate formatting characters to find actual content
 				rightLevel := paraLevel
+				rightIdx := -1
 				for j := pdiIdx + 1; j < n; j++ {
 					if levels[j] >= 0 {
+						c := classes[j]
+						// Skip isolate formatting characters
+						if c == ClassLRI || c == ClassRLI || c == ClassFSI || c == ClassPDI {
+							continue
+						}
 						rightLevel = levels[j]
+						rightIdx = j
 						break
 					}
 				}
 
-				// If both sides are at the same level, use that level
-				if leftLevel == rightLevel && leftLevel != paraLevel {
-					levels[i] = leftLevel
-					levels[pdiIdx] = leftLevel
+				// Helper: check if both characters are strong and have the same directionality
+				// Uses originalClasses to check types before resolution
+				// Strong types: L (LTR), R and AL (RTL)
+				bothStrongSameDir := func(leftIdx, rightIdx int) bool {
+					if leftIdx < 0 || rightIdx < 0 {
+						return false
+					}
+					leftClass := originalClasses[leftIdx]
+					rightClass := originalClasses[rightIdx]
+
+					// Check if both are strong types
+					leftIsStrongLTR := leftClass == ClassL
+					leftIsStrongRTL := leftClass == ClassR || leftClass == ClassAL
+					rightIsStrongLTR := rightClass == ClassL
+					rightIsStrongRTL := rightClass == ClassR || rightClass == ClassAL
+
+					if !((leftIsStrongLTR || leftIsStrongRTL) && (rightIsStrongLTR || rightIsStrongRTL)) {
+						return false
+					}
+
+					// Check if same directionality
+					return (leftIsStrongLTR && rightIsStrongLTR) || (leftIsStrongRTL && rightIsStrongRTL)
 				}
+
+				// Helper: check if at least one side is strong with compatible directionality
+				hasStrongCompat := func(leftIdx, rightIdx int) bool {
+					if leftIdx < 0 || rightIdx < 0 {
+						return false
+					}
+					leftClass := originalClasses[leftIdx]
+					rightClass := originalClasses[rightIdx]
+
+					leftIsStrongLTR := leftClass == ClassL
+					leftIsStrongRTL := leftClass == ClassR || leftClass == ClassAL
+					rightIsStrongLTR := rightClass == ClassL
+					rightIsStrongRTL := rightClass == ClassR || rightClass == ClassAL
+
+					// At least one must be strong
+					leftIsStrong := leftIsStrongLTR || leftIsStrongRTL
+					rightIsStrong := rightIsStrongLTR || rightIsStrongRTL
+					if !leftIsStrong && !rightIsStrong {
+						return false
+					}
+
+					// Check compatible directionality (both LTR or both RTL)
+					// Numbers (EN, AN) are considered compatible with their directionality
+					leftIsLTRType := leftClass == ClassL || leftClass == ClassEN
+					rightIsLTRType := rightClass == ClassL || rightClass == ClassEN
+					leftIsRTLType := leftClass == ClassR || leftClass == ClassAL || leftClass == ClassAN
+					rightIsRTLType := rightClass == ClassR || rightClass == ClassAL || leftClass == ClassAN
+
+					return (leftIsLTRType && rightIsLTRType) || (leftIsRTLType && rightIsRTLType)
+				}
+
+				// Rule: Empty isolates level assignment based on surrounding context
+				if leftLevel != paraLevel && rightLevel != paraLevel {
+					// Both sides at non-paragraph levels
+					if leftLevel == rightLevel {
+						// Both at same level
+						if bothStrongSameDir(leftIdx, rightIdx) {
+							// Both strong types with same directionality → match that level
+							// Example: L(2) LRI PDI L(2) at para=1 → empty at 2
+							// Example: R(1) LRI PDI R(1) at para=0 → empty at 1
+							levels[i] = leftLevel
+							levels[pdiIdx] = leftLevel
+						} else if leftIdx >= 0 && rightIdx >= 0 && originalClasses[leftIdx] == originalClasses[rightIdx] {
+							// Both same bidi class (e.g., AN...AN) → use paraLevel+1
+							// Example: AN(2) LRI PDI AN(2) at para=0 → empty at 1
+							levels[i] = paraLevel + 1
+							levels[pdiIdx] = paraLevel + 1
+						} else if hasStrongCompat(leftIdx, rightIdx) {
+							// At least one strong with compatible directionality → match surrounding level
+							// Example: L(2) LRI PDI EN(2) at para=1 → empty at 2
+							levels[i] = leftLevel
+							levels[pdiIdx] = leftLevel
+						}
+						// else: incompatible or no strong type → stay at paragraph level
+					} else {
+						// Different levels → use minimum (closer to paragraph)
+						// Example: R(1) LRI PDI EN(2) at para=0 → empty at 1
+						minLevel := leftLevel
+						if rightLevel < leftLevel {
+							minLevel = rightLevel
+						}
+						levels[i] = minLevel
+						levels[pdiIdx] = minLevel
+					}
+				}
+				// else: one or both sides at paragraph level → stay at paragraph level
 			}
 		}
 	}
