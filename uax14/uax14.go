@@ -4387,6 +4387,27 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			continue
 		}
 
+		// LB21: Special handling for HY after CP or CL
+		// Pattern: CP × HY ÷ or CL × HY ÷
+		// Even though CP/CL prohibit breaks before HY, we should allow breaks after HY
+		if prevClass == ClassHY && i >= 2 {
+			// Look back to see if HY follows CP or CL
+			prevPrevRune := runes[i-2]
+			prevPrevClass := getBreakClass(prevPrevRune)
+			if isClassOrVariant(prevPrevClass, ClassCP) || isClassOrVariant(prevPrevClass, ClassCL) {
+				// CP × HY ÷ or CL × HY ÷ - allow break after HY
+				if currClass != ClassSP && currClass != ClassZW && currClass != ClassCM {
+					bytePos := len(string(runes[:i]))
+					breakPoints = append(breakPoints, bytePos)
+					prevClass = currClass
+					if currClass != ClassSP {
+						lastNonSpaceClass = currClass
+					}
+					continue
+				}
+			}
+		}
+
 		// LB30a: Do not break within emoji flag sequences
 		// Break between regional indicators if and only if there is an even number of RIs before the break point
 		// RI × RI for pairs, RI × RI ÷ RI for triples
