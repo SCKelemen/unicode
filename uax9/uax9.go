@@ -749,21 +749,42 @@ func reorderByLevels(runes []rune, levels []int, paraLevel int) string {
 	for level := maxLevel; level >= lowestOddLevel; level-- {
 		i := 0
 		for i < n {
-			if levels[i] >= level {
-				// Find end of run
-				start := i
-				for i < n && levels[i] >= level {
-					i++
-				}
-				// Reverse this run
-				end := i - 1
-				for start < end {
-					indices[start], indices[end] = indices[end], indices[start]
-					start++
-					end--
-				}
-			} else {
+			// Skip removed characters when not in a run
+			if levels[i] == -1 {
 				i++
+				continue
+			}
+
+			// Skip characters below this level
+			if levels[i] < level {
+				i++
+				continue
+			}
+
+			// Found start of a run at this level
+			start := i
+			i++
+
+			// Extend run: include removed characters AND characters at this level
+			for i < n {
+				if levels[i] == -1 {
+					// Removed character: tentatively include it
+					i++
+				} else if levels[i] >= level {
+					// Character at this level or higher: include it
+					i++
+				} else {
+					// Character below this level: stop
+					break
+				}
+			}
+			end := i - 1
+
+			// Reverse this run
+			for start < end {
+				indices[start], indices[end] = indices[end], indices[start]
+				start++
+				end--
 			}
 		}
 	}

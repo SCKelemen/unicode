@@ -201,19 +201,42 @@ func computeReorder(classes []BidiClass, paraLevel int) []int {
 	for level := maxLevel; level >= lowestOddLevel; level-- {
 		i := 0
 		for i < n {
-			if levels[i] >= level {
-				start := i
-				for i < n && levels[i] >= level {
-					i++
-				}
-				end := i - 1
-				for start < end {
-					indices[start], indices[end] = indices[end], indices[start]
-					start++
-					end--
-				}
-			} else {
+			// Skip removed characters when not in a run
+			if levels[i] == -1 {
 				i++
+				continue
+			}
+
+			// Skip characters below this level
+			if levels[i] < level {
+				i++
+				continue
+			}
+
+			// Found start of a run at this level
+			start := i
+			i++
+
+			// Extend run: include removed characters AND characters at this level
+			for i < n {
+				if levels[i] == -1 {
+					// Removed character: tentatively include it
+					i++
+				} else if levels[i] >= level {
+					// Character at this level or higher: include it
+					i++
+				} else {
+					// Character below this level: stop
+					break
+				}
+			}
+			end := i - 1
+
+			// Reverse this run
+			for start < end {
+				indices[start], indices[end] = indices[end], indices[start]
+				start++
+				end--
 			}
 		}
 	}
@@ -305,8 +328,14 @@ func TestOfficialBidiTest(t *testing.T) {
 			testCount++
 
 			// Compute levels and reorder
-			actualLevels := computeLevels(classes, paraLevel)
-			actualReorder := computeReorder(classes, paraLevel)
+			// Make copies since computeLevels modifies the classes array
+			classesCopy1 := make([]BidiClass, len(classes))
+			copy(classesCopy1, classes)
+			actualLevels := computeLevels(classesCopy1, paraLevel)
+
+			classesCopy2 := make([]BidiClass, len(classes))
+			copy(classesCopy2, classes)
+			actualReorder := computeReorder(classesCopy2, paraLevel)
 
 			// Check levels
 			levelsMatch := len(expectedLevels) == len(actualLevels)
