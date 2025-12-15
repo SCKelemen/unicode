@@ -4393,10 +4393,11 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 				isSoftHyphen := i > 0 && runes[i-1] == '\u00AD'
 
 				if prevClass == ClassBA || prevClass == ClassB2 {
-					// BA/B2 characters: allow break, but not immediately before SP, CM, GL, ZW
+					// BA/B2 characters: allow break, but not immediately before SP, CM, ZW
 					// The break should happen after the following space/character
-					if currClass != ClassSP && currClass != ClassCM && currClass != ClassGL && currClass != ClassZW {
-						// BA/B2 × ! (SP|CM|GL|ZW) - break after BA/B2
+					// Note: GL removed - pair table decides BA × GL (returns BreakDirect)
+					if currClass != ClassSP && currClass != ClassCM && currClass != ClassZW {
+						// BA/B2 × ! (SP|CM|ZW) - break after BA/B2
 						if !(isSoftHyphen && hyphens == HyphensNone) {
 							bytePos := len(string(runes[:i]))
 							breakPoints = append(breakPoints, bytePos)
@@ -4404,7 +4405,6 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 					}
 					// BA/B2 × SP - don't break here; let space create the break
 					// BA/B2 × CM - don't break before combining mark
-					// BA/B2 × GL - don't break before glue
 					// BA/B2 × ZW - don't break before zero-width space (LB8)
 				} else {
 					// HY/CB: Respect hyphens setting
@@ -4460,9 +4460,10 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			} else {
 				// Default: BreakDirect for all other combinations
 				// The pair table explicitly says to break here
-				// Respect special rules: don't break before SP, ZW, CM, GL, WJ
+				// Respect special rules: don't break before SP, ZW, CM, WJ
+				// Note: GL removed - if pair table says BreakDirect for X × GL, trust it (e.g. BA × GL)
 				if currClass != ClassSP && currClass != ClassZW && currClass != ClassCM &&
-					currClass != ClassGL && currClass != ClassWJ {
+					currClass != ClassWJ {
 					bytePos := len(string(runes[:i]))
 					breakPoints = append(breakPoints, bytePos)
 				}
