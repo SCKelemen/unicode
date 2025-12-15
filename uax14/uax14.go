@@ -4407,10 +4407,31 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			// Don't break between regular alphabetic characters (to keep words together)
 
 			// LB30: Do not break between Emoji Base and Emoji Modifier
-			// Emoji Base includes XX (unassigned Extended_Pictographic)
-			// Note: Full Extended_Pictographic support would require additional Unicode data
-			if currClass == ClassEM && prevClass == ClassXX {
-				// Don't break - EM attaches to emoji base (XX = ExtPict)
+			// Emoji Base includes Extended_Pictographic characters (ID or XX in emoji ranges)
+			// Check if base character (skipping CM) is in Extended_Pictographic range
+			isExtPict := false
+			baseClass := prevClass
+			if i > 0 {
+				// Look back past any CM/ZWJ to find the actual base character
+				checkIdx := i - 1
+				for checkIdx >= 0 {
+					checkRune := runes[checkIdx]
+					checkClass := getBreakClass(checkRune)
+					if !isClassOrVariant(checkClass, ClassCM) && checkClass != ClassZWJ {
+						// Found the base character
+						baseClass = checkClass
+						// Extended_Pictographic ranges (simplified - covers main emoji blocks)
+						if (checkRune >= 0x1F000 && checkRune <= 0x1FFFD) || // Various emoji blocks
+							(checkRune >= 0x2600 && checkRune <= 0x27BF) { // Miscellaneous Symbols
+							isExtPict = true
+						}
+						break
+					}
+					checkIdx--
+				}
+			}
+			if currClass == ClassEM && (baseClass == ClassXX || (baseClass == ClassID && isExtPict)) {
+				// Don't break - EM attaches to emoji base (ExtPict)
 			} else if prevClass == ClassZW {
 				// Zero-width space always allows break
 				bytePos := len(string(runes[:i]))
