@@ -4408,9 +4408,29 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			}
 		}
 
-		// LB28.13: Do not break after Virama before Aksara
-		// AK × VI × AK or AK × VI × CM × AK or AS × VI × AK
-		// Need to look back past CM to find VI, then check if VI follows AK/AS
+		// LB28: Do not break after Virama if Aksara sequence continues
+		// VI × AL × VI × AK pattern (like DOTTED CIRCLE × VI × DOTTED CIRCLE × VI × AK)
+		if (prevClass == ClassVI || prevClass == ClassVF) && isClassOrVariant(currClass, ClassAL) {
+			// Check if AL is followed by VI/VF and then AK/AS (Aksara sequence continuation)
+			if i+1 < len(runes) {
+				nextRune := runes[i+1]
+				nextClass := getBreakClass(nextRune)
+				if nextClass == ClassVI || nextClass == ClassVF {
+					// AL × VI ahead - this continues the Aksara sequence
+					// Don't break after the current VI
+					prevClass = currClass
+					if currClass != ClassSP {
+						lastNonSpaceClass = currClass
+					}
+					continue
+				}
+			}
+		}
+
+		// LB28.12/LB28.13: Do not break after Virama before Aksara
+		// Base × VI × (CM)* × AK or Base × VF × (CM)* × AK
+		// Base can be AK, AS, or AL (for DOTTED CIRCLE)
+		// Need to look back past CM to find VI/VF, then check what precedes it
 		if currClass == ClassAK || currClass == ClassAS {
 			// Look back past CM to find the actual base character
 			checkIdx := i - 1
@@ -4432,11 +4452,25 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 				break
 			}
 			if foundVIorVF && viIndex > 0 {
-				// Found VI/VF - now check if it follows AK or AS
-				viPrevRune := runes[viIndex-1]
-				viPrevClass := getBreakClass(viPrevRune)
-				if viPrevClass == ClassAK || viPrevClass == ClassAS {
-					// AK/AS × VI × (CM)* × AK/AS - don't break
+				// Found VI/VF - now check if it follows AK, AS, or AL (skipping past any CM)
+				viPrevIdx := viIndex - 1
+				foundValidBase := false
+				for viPrevIdx >= 0 {
+					viPrevRune := runes[viPrevIdx]
+					viPrevClass := getBreakClass(viPrevRune)
+					if isClassOrVariant(viPrevClass, ClassCM) || viPrevClass == ClassZWJ {
+						// Skip past CM/ZWJ to find base character
+						viPrevIdx--
+						continue
+					}
+					// Found the base character before VI
+					if viPrevClass == ClassAK || viPrevClass == ClassAS || isClassOrVariant(viPrevClass, ClassAL) {
+						foundValidBase = true
+					}
+					break
+				}
+				if foundValidBase {
+					// Base × (CM)* × VI/VF × (CM)* × AK/AS - don't break (LB28.12)
 					prevClass = currClass
 					if currClass != ClassSP {
 						lastNonSpaceClass = currClass
