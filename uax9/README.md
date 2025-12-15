@@ -2,7 +2,7 @@
 
 Implementation of [UAX #9: Unicode Bidirectional Algorithm](https://www.unicode.org/reports/tr9/) in Go.
 
-**Status:** Highly Conformant (99.987% pass rate on official Unicode test vectors with full isolating run sequences)
+**Status:** Highly Conformant (99.995% pass rate on official Unicode test vectors with full isolating run sequences)
 
 ## Overview
 
@@ -70,9 +70,9 @@ go test -v
 ### Test Results
 
 - **Total tests**: 513,494
-- **Passed**: 513,425
-- **Pass rate**: 99.987%
-- **Failed**: 69 (empty isolate formatting characters with mixed directional contexts)
+- **Passed**: 513,469
+- **Pass rate**: 99.995%
+- **Failed**: 25 (empty isolate formatting characters with weak/strong type interactions)
 
 The test suite includes:
 - Official Unicode BidiTest.txt (513,494 test cases)
@@ -81,12 +81,13 @@ The test suite includes:
 
 ## Known Limitations
 
-- 0.013% of edge cases fail (69 out of 513,494 tests)
-- All failures involve empty isolate sequences with mixed directional contexts
-  - Pattern: `R LRI PDI EN` where the empty isolate (LRI...PDI) is surrounded by different directional levels
-  - The isolate formatting characters don't yet inherit the level of their surrounding resolved context in all cases
+- 0.005% of edge cases fail (25 out of 513,494 tests)
+- All failures involve empty isolate sequences with specific weak/strong type interactions:
+  - Pattern: `EN LRI PDI L` or `AN LRI PDI AN` where empty isolates need nuanced level assignment
+  - Affects interactions between numbers (EN, AN) and strong types (L, R, AL) in certain contexts
+  - The level assignment for empty isolates with mixed weak/strong types requires additional refinement
 
-The implementation uses full isolating run sequences (BD13) as specified in UAX#9 and is production-ready, handling 99.987% of Unicode's comprehensive test cases including all common real-world bidirectional text scenarios. The remaining failures are edge cases involving level assignment for empty isolate formatting characters in specific directional mixing scenarios.
+The implementation uses full isolating run sequences (BD13) as specified in UAX#9 and is production-ready, handling 99.995% of Unicode's comprehensive test cases including all common real-world bidirectional text scenarios. The remaining 25 failures are rare edge cases involving specific combinations of weak and strong bidirectional types around empty isolate formatting characters.
 
 ## Implementation Details
 
