@@ -386,6 +386,15 @@ var pairTable = map[[2]BreakClass]BreakAction{
 	{ClassXX, ClassBA}: BreakProhibited,
 	{ClassXX, ClassHY}: BreakProhibited,
 
+	// Special cases: don't break between BA and certain classes
+	{ClassBA, ClassSP}: BreakProhibited,  // Let space handle the break
+	{ClassBA, ClassCM}: BreakProhibited,  // Don't break before combining marks
+	{ClassBA, ClassGL}: BreakProhibited,  // Don't break before glue
+	{ClassB2, ClassBA}: BreakProhibited,  // Don't break between B2 and BA
+	{ClassB2, ClassSP}: BreakProhibited,  // Let space handle the break
+	{ClassB2, ClassCM}: BreakProhibited,  // Don't break before combining marks
+	{ClassB2, ClassGL}: BreakProhibited,  // Don't break before glue
+
 	// Break before
 	{ClassXX, ClassBB}: BreakDirect,
 
@@ -732,16 +741,23 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 				breakPoints = append(breakPoints, bytePos)
 			} else if prevClass == ClassHY || prevClass == ClassCB || prevClass == ClassBA || prevClass == ClassB2 {
 				// Explicit break opportunities (hyphens, soft hyphens, BA, B2)
-				// For BA/B2: Most characters break, soft hyphen respects hyphens setting
+				// For BA/B2: Break after, but not immediately before SP, CM, or other special chars
 				// For HY/CB: Respect the hyphens property
 				isSoftHyphen := i > 0 && runes[i-1] == '\u00AD'
 
 				if prevClass == ClassBA || prevClass == ClassB2 {
-					// BA/B2 characters: break unless it's soft hyphen with HyphensNone
-					if !(isSoftHyphen && hyphens == HyphensNone) {
-						bytePos := len(string(runes[:i]))
-						breakPoints = append(breakPoints, bytePos)
+					// BA/B2 characters: allow break, but not immediately before SP or CM
+					// The break should happen after the following space/character
+					if currClass != ClassSP && currClass != ClassCM && currClass != ClassGL {
+						// BA/B2 × ! (SP|CM|GL) - break after BA/B2
+						if !(isSoftHyphen && hyphens == HyphensNone) {
+							bytePos := len(string(runes[:i]))
+							breakPoints = append(breakPoints, bytePos)
+						}
 					}
+					// BA/B2 × SP - don't break here; let space create the break
+					// BA/B2 × CM - don't break before combining mark
+					// BA/B2 × GL - don't break before glue
 				} else {
 					// HY/CB: Respect hyphens setting
 					if hyphens == HyphensNone {
