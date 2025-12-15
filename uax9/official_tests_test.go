@@ -153,6 +153,10 @@ func computeLevels(classes []BidiClass, paraLevel int) []int {
 	// Process explicit embeddings and isolates
 	processExplicitLevels(classes, levels, paraLevel)
 
+	// Save explicit levels for sos/eos computation
+	explicitLevels := make([]int, n)
+	copy(explicitLevels, levels)
+
 	// BD9: Determine matching isolate initiators and PDIs
 	matchingPDI, matchingInitiator := determineMatchingIsolates(classes)
 
@@ -161,7 +165,8 @@ func computeLevels(classes []BidiClass, paraLevel int) []int {
 
 	// Process each isolating run sequence
 	for _, seqIndexes := range sequences {
-		seq := newIsolatingRunSequence(seqIndexes, classes, originalClasses, levels, paraLevel)
+		// Use explicit levels for sos/eos computation
+		seq := newIsolatingRunSequence(seqIndexes, classes, originalClasses, explicitLevels, paraLevel)
 
 		// Resolve weak types (W1-W7) within this sequence
 		seq.resolveWeakTypes()
@@ -178,6 +183,9 @@ func computeLevels(classes []BidiClass, paraLevel int) []int {
 			levels[origIdx] = seq.levels[i]
 		}
 	}
+
+	// Adjust empty isolate formatting character levels to match surrounding context
+	adjustEmptyIsolateFormattingLevels(classes, levels, matchingPDI, paraLevel)
 
 	// Apply L1 rule
 	applyL1(originalClasses, levels, paraLevel)

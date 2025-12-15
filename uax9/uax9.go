@@ -245,6 +245,10 @@ func Reorder(text string, baseDir Direction) string {
 	// Process explicit embeddings and isolates (X1-X8)
 	processExplicitLevels(classes, levels, paraLevel)
 
+	// Save explicit levels for sos/eos computation
+	explicitLevels := make([]int, n)
+	copy(explicitLevels, levels)
+
 	// BD9: Determine matching isolate initiators and PDIs
 	matchingPDI, matchingInitiator := determineMatchingIsolates(classes)
 
@@ -253,7 +257,8 @@ func Reorder(text string, baseDir Direction) string {
 
 	// Process each isolating run sequence
 	for _, seqIndexes := range sequences {
-		seq := newIsolatingRunSequence(seqIndexes, classes, originalClasses, levels, paraLevel)
+		// Use explicit levels for sos/eos computation
+		seq := newIsolatingRunSequence(seqIndexes, classes, originalClasses, explicitLevels, paraLevel)
 
 		// Resolve weak types (W1-W7) within this sequence
 		seq.resolveWeakTypes()
@@ -271,11 +276,63 @@ func Reorder(text string, baseDir Direction) string {
 		}
 	}
 
+	// Adjust empty isolate formatting character levels to match surrounding context
+	adjustEmptyIsolateFormattingLevels(classes, levels, matchingPDI, paraLevel)
+
 	// Apply L1: Reset levels for segment/paragraph separators and trailing whitespace
 	applyL1(originalClasses, levels, paraLevel)
 
 	// Reorder based on levels (L1-L4)
 	return reorderByLevels(runes, levels, paraLevel)
+}
+
+// adjustEmptyIsolateFormattingLevels adjusts empty isolate formatting characters to match
+// their surrounding resolved context. This applies after all W/N/I resolution is complete.
+func adjustEmptyIsolateFormattingLevels(classes []BidiClass, levels []int, matchingPDI []int, paraLevel int) {
+	n := len(classes)
+
+	for i := 0; i < n; i++ {
+		class := classes[i]
+		// Check if this is an empty isolate initiator
+		if (class == ClassLRI || class == ClassRLI || class == ClassFSI) && matchingPDI[i] != -1 {
+			pdiIdx := matchingPDI[i]
+			// Check if it's an empty isolate (no non-removed characters between initiator and PDI)
+			isEmpty := true
+			for j := i + 1; j < pdiIdx; j++ {
+				if levels[j] >= 0 {
+					isEmpty = false
+					break
+				}
+			}
+
+			if isEmpty {
+				// Adjust both initiator and PDI to match surrounding context
+				// Find the level from left context
+				leftLevel := paraLevel
+				for j := i - 1; j >= 0; j-- {
+					if levels[j] >= 0 {
+						leftLevel = levels[j]
+						break
+					}
+				}
+
+				// Find the level from right context
+				rightLevel := paraLevel
+				for j := pdiIdx + 1; j < n; j++ {
+					if levels[j] >= 0 {
+						rightLevel = levels[j]
+						break
+					}
+				}
+
+				// If both sides are at the same level, use that level
+				if leftLevel == rightLevel && leftLevel != paraLevel {
+					levels[i] = leftLevel
+					levels[pdiIdx] = leftLevel
+				}
+			}
+		}
+	}
 }
 
 // embeddingLevel represents a level on the directional embedding stack
