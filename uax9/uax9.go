@@ -245,17 +245,31 @@ func Reorder(text string, baseDir Direction) string {
 	// Process explicit embeddings and isolates (X1-X8)
 	processExplicitLevels(classes, levels, paraLevel)
 
-	// Detect empty isolates (isolate initiator immediately followed by PDI)
-	isEmptyIsolate := detectEmptyIsolates(classes, levels)
+	// BD9: Determine matching isolate initiators and PDIs
+	matchingPDI, matchingInitiator := determineMatchingIsolates(classes)
 
-	// Resolve weak types (W1-W7)
-	resolveWeakTypes(classes, levels)
+	// BD13: Determine isolating run sequences
+	sequences := determineIsolatingRunSequences(classes, levels, matchingPDI, matchingInitiator)
 
-	// Resolve neutral types (N0-N2)
-	resolveNeutralTypes(classes, levels, paraLevel, isEmptyIsolate)
+	// Process each isolating run sequence
+	for _, seqIndexes := range sequences {
+		seq := newIsolatingRunSequence(seqIndexes, classes, originalClasses, levels, paraLevel)
 
-	// Resolve implicit levels (I1-I2)
-	resolveImplicitLevels(classes, levels)
+		// Resolve weak types (W1-W7) within this sequence
+		seq.resolveWeakTypes()
+
+		// Resolve neutral types (N0-N2) within this sequence
+		seq.resolveNeutralTypes()
+
+		// Resolve implicit levels (I1-I2) within this sequence
+		seq.resolveImplicitLevels()
+
+		// Apply resolved types and levels back to original arrays
+		for i, origIdx := range seq.indexes {
+			classes[origIdx] = seq.types[i]
+			levels[origIdx] = seq.levels[i]
+		}
+	}
 
 	// Apply L1: Reset levels for segment/paragraph separators and trailing whitespace
 	applyL1(originalClasses, levels, paraLevel)
@@ -808,6 +822,291 @@ func determineMatchingIsolates(classes []BidiClass) ([]int, []int) {
 	}
 
 	return matchingPDI, matchingInitiator
+}
+
+// isolatingRunSequence represents a maximal sequence of level runs connected through isolates.
+// It contains all information needed to resolve types within the sequence.
+type isolatingRunSequence struct {
+	indexes       []int       // Original character indexes in this sequence
+	types         []BidiClass // Working copy of types for resolution
+	levels        []int       // Resolved levels for each character
+	level         int         // Embedding level of this sequence
+	sos           BidiClass   // Start-of-sequence type (L or R)
+	eos           BidiClass   // End-of-sequence type (L or R)
+	originalTypes []BidiClass // Original types before resolution
+}
+
+// typeForLevel returns L or R based on level parity
+func typeForLevel(level int) BidiClass {
+	if level%2 == 0 {
+		return ClassL
+	}
+	return ClassR
+}
+
+// newIsolatingRunSequence creates an isolating run sequence from character indexes.
+// X10: Determine sos and eos for the sequence.
+func newIsolatingRunSequence(indexes []int, classes, originalClasses []BidiClass, levels []int, paraLevel int) *isolatingRunSequence {
+	seq := &isolatingRunSequence{
+		indexes:       indexes,
+		types:         make([]BidiClass, len(indexes)),
+		levels:        make([]int, len(indexes)),
+		originalTypes: make([]BidiClass, len(indexes)),
+	}
+
+	// Get the embedding level from the first character
+	seq.level = levels[indexes[0]]
+
+	// Copy types and initialize levels for this sequence
+	for i, idx := range indexes {
+		seq.types[i] = classes[idx]
+		seq.originalTypes[i] = originalClasses[idx]
+		// All characters in the sequence start at the sequence's base level
+		seq.levels[i] = seq.level
+	}
+
+	// Determine sos (start-of-sequence type)
+	// Look at the level before the first character in the sequence
+	firstIdx := indexes[0]
+	prevLevel := paraLevel
+	for i := firstIdx - 1; i >= 0; i-- {
+		if levels[i] >= 0 { // Skip removed characters
+			prevLevel = levels[i]
+			break
+		}
+	}
+	seq.sos = typeForLevel(max(prevLevel, seq.level))
+
+	// Determine eos (end-of-sequence type)
+	lastIdx := indexes[len(indexes)-1]
+	lastType := classes[lastIdx]
+	var succLevel int
+
+	// If sequence ends with an isolate initiator, eos is based on paragraph level
+	if lastType == ClassLRI || lastType == ClassRLI || lastType == ClassFSI {
+		succLevel = paraLevel
+	} else {
+		// Look at the level after the last character
+		succLevel = paraLevel
+		for i := lastIdx + 1; i < len(classes); i++ {
+			if levels[i] >= 0 {
+				succLevel = levels[i]
+				break
+			}
+		}
+	}
+	seq.eos = typeForLevel(max(succLevel, seq.level))
+
+	return seq
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// resolveWeakTypes resolves weak types (W1-W7) within this isolating run sequence.
+func (seq *isolatingRunSequence) resolveWeakTypes() {
+	n := len(seq.types)
+
+	// W1: NSM takes the type of the preceding character
+	precedingType := seq.sos
+	for i := 0; i < n; i++ {
+		if seq.types[i] == ClassNSM {
+			seq.types[i] = precedingType
+		} else {
+			// Isolate formatting characters are treated as ON for preceding type
+			if seq.types[i] == ClassLRI || seq.types[i] == ClassRLI ||
+				seq.types[i] == ClassFSI || seq.types[i] == ClassPDI {
+				precedingType = ClassON
+			} else {
+				precedingType = seq.types[i]
+			}
+		}
+	}
+
+	// W2: EN following AL becomes AN
+	for i := 0; i < n; i++ {
+		if seq.types[i] == ClassEN {
+			// Look back for AL or strong L/R
+			foundStrong := false
+			for j := i - 1; j >= 0; j-- {
+				t := seq.types[j]
+				if t == ClassL || t == ClassR || t == ClassAL {
+					if t == ClassAL {
+						seq.types[i] = ClassAN
+					}
+					foundStrong = true
+					break
+				}
+			}
+			// If no strong type found, use sos (which is L or R, not AL, so no change)
+			_ = foundStrong // sos cannot be AL, so this doesn't affect the result
+		}
+	}
+
+	// W3: AL becomes R
+	for i := 0; i < n; i++ {
+		if seq.types[i] == ClassAL {
+			seq.types[i] = ClassR
+		}
+	}
+
+	// W4: Single separator between numbers takes number type
+	for i := 1; i < n-1; i++ {
+		if seq.types[i] == ClassES || seq.types[i] == ClassCS {
+			prevType := seq.types[i-1]
+			nextType := seq.types[i+1]
+
+			if prevType == ClassEN && nextType == ClassEN && seq.types[i] == ClassES {
+				seq.types[i] = ClassEN
+			} else if seq.types[i] == ClassCS {
+				if prevType == ClassEN && nextType == ClassEN {
+					seq.types[i] = ClassEN
+				} else if prevType == ClassAN && nextType == ClassAN {
+					seq.types[i] = ClassAN
+				}
+			}
+		}
+	}
+
+	// W5: Sequence of ET adjacent to EN becomes EN
+	for i := 0; i < n; i++ {
+		if seq.types[i] == ClassET {
+			// Check if adjacent to EN (before or after)
+			foundEN := false
+
+			// Check before
+			for j := i - 1; j >= 0; j-- {
+				if seq.types[j] == ClassEN {
+					foundEN = true
+					break
+				} else if seq.types[j] != ClassET {
+					break
+				}
+			}
+
+			// Check after
+			if !foundEN {
+				for j := i + 1; j < n; j++ {
+					if seq.types[j] == ClassEN {
+						foundEN = true
+						break
+					} else if seq.types[j] != ClassET {
+						break
+					}
+				}
+			}
+
+			if foundEN {
+				seq.types[i] = ClassEN
+			}
+		}
+	}
+
+	// W6: Separators and terminators become ON
+	for i := 0; i < n; i++ {
+		if seq.types[i] == ClassES || seq.types[i] == ClassET || seq.types[i] == ClassCS {
+			seq.types[i] = ClassON
+		}
+	}
+
+	// W7: EN following L becomes L
+	for i := 0; i < n; i++ {
+		if seq.types[i] == ClassEN {
+			// Look back for L or strong R
+			foundStrong := false
+			for j := i - 1; j >= 0; j-- {
+				t := seq.types[j]
+				if t == ClassL {
+					seq.types[i] = ClassL
+					foundStrong = true
+					break
+				} else if t == ClassR {
+					foundStrong = true
+					break
+				}
+			}
+			// If no strong type found, use sos
+			if !foundStrong && seq.sos == ClassL {
+				seq.types[i] = ClassL
+			}
+		}
+	}
+}
+
+// resolveNeutralTypes resolves neutral types (N0-N2) within this isolating run sequence.
+func (seq *isolatingRunSequence) resolveNeutralTypes() {
+	n := len(seq.types)
+
+	// N0: Paired bracket resolution would go here (not fully implemented)
+
+	// N1 and N2: Neutrals take direction from surrounding strong types
+	for i := 0; i < n; i++ {
+		// Check if neutral or empty isolate
+		isNeutral := seq.types[i] == ClassWS || seq.types[i] == ClassON ||
+			seq.types[i] == ClassB || seq.types[i] == ClassS
+
+		if !isNeutral {
+			continue
+		}
+
+		// Find preceding strong type
+		var prevType BidiClass = seq.sos
+		for j := i - 1; j >= 0; j-- {
+			if seq.types[j] == ClassL {
+				prevType = ClassL
+				break
+			} else if seq.types[j] == ClassR || seq.types[j] == ClassEN || seq.types[j] == ClassAN {
+				prevType = ClassR
+				break
+			}
+		}
+
+		// Find following strong type
+		var nextType BidiClass = seq.eos
+		for j := i + 1; j < n; j++ {
+			if seq.types[j] == ClassL {
+				nextType = ClassL
+				break
+			} else if seq.types[j] == ClassR || seq.types[j] == ClassEN || seq.types[j] == ClassAN {
+				nextType = ClassR
+				break
+			}
+		}
+
+		// N1: If surrounded by same strong type, take that type
+		if prevType == nextType {
+			seq.types[i] = prevType
+		} else {
+			// N2: Take embedding direction
+			seq.types[i] = typeForLevel(seq.level)
+		}
+	}
+}
+
+// resolveImplicitLevels resolves implicit levels (I1-I2) within this isolating run sequence.
+func (seq *isolatingRunSequence) resolveImplicitLevels() {
+	for i := 0; i < len(seq.types); i++ {
+		level := seq.levels[i]
+		class := seq.types[i]
+
+		// I1: For even levels
+		if level%2 == 0 {
+			if class == ClassR {
+				seq.levels[i] = level + 1
+			} else if class == ClassAN || class == ClassEN {
+				seq.levels[i] = level + 2
+			}
+		} else {
+			// I2: For odd levels
+			if class == ClassL || class == ClassAN || class == ClassEN {
+				seq.levels[i] = level + 1
+			}
+		}
+	}
 }
 
 // determineIsolatingRunSequences implements BD13: determine isolating run sequences.

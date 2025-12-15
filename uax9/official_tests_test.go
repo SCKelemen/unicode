@@ -153,21 +153,31 @@ func computeLevels(classes []BidiClass, paraLevel int) []int {
 	// Process explicit embeddings and isolates
 	processExplicitLevels(classes, levels, paraLevel)
 
-	// Detect empty isolates
-	isEmptyIsolate := detectEmptyIsolates(classes, levels)
+	// BD9: Determine matching isolate initiators and PDIs
+	matchingPDI, matchingInitiator := determineMatchingIsolates(classes)
 
-	// Make a copy of classes since they will be modified
-	classesCopy := make([]BidiClass, n)
-	copy(classesCopy, classes)
+	// BD13: Determine isolating run sequences
+	sequences := determineIsolatingRunSequences(classes, levels, matchingPDI, matchingInitiator)
 
-	// Resolve weak types
-	resolveWeakTypes(classesCopy, levels)
+	// Process each isolating run sequence
+	for _, seqIndexes := range sequences {
+		seq := newIsolatingRunSequence(seqIndexes, classes, originalClasses, levels, paraLevel)
 
-	// Resolve neutral types
-	resolveNeutralTypes(classesCopy, levels, paraLevel, isEmptyIsolate)
+		// Resolve weak types (W1-W7) within this sequence
+		seq.resolveWeakTypes()
 
-	// Resolve implicit levels
-	resolveImplicitLevels(classesCopy, levels)
+		// Resolve neutral types (N0-N2) within this sequence
+		seq.resolveNeutralTypes()
+
+		// Resolve implicit levels (I1-I2) within this sequence
+		seq.resolveImplicitLevels()
+
+		// Apply resolved types and levels back to original arrays
+		for i, origIdx := range seq.indexes {
+			classes[origIdx] = seq.types[i]
+			levels[origIdx] = seq.levels[i]
+		}
+	}
 
 	// Apply L1 rule
 	applyL1(originalClasses, levels, paraLevel)
