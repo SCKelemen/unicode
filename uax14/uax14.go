@@ -4568,6 +4568,145 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			}
 		}
 
+		// LB25 Special case: SP ÷ IS × NU (decimal number like ".35")
+		// When IS is followed by NU and preceded by SP, allow break (override LB13)
+		// This is when IS acts as a leading decimal point, not an infix separator
+		if action == BreakProhibited && prevClass == ClassSP && currClass == ClassIS && i+1 < len(runes) {
+			nextRune := runes[i+1]
+			nextClass := getBreakClass(nextRune)
+			// Skip CM to find the actual next character
+			nextIdx := i + 1
+			for nextIdx < len(runes) && (isClassOrVariant(nextClass, ClassCM) || nextClass == ClassZWJ) {
+				nextIdx++
+				if nextIdx < len(runes) {
+					nextRune = runes[nextIdx]
+					nextClass = getBreakClass(nextRune)
+				}
+			}
+			if nextClass == ClassNU {
+				// IS followed by NU - allow break before IS (it's a leading decimal point)
+				// Check if we're NOT in a continuing numeric sequence
+				isLeadingDecimal := true
+				if i >= 2 {
+					checkIdx := i - 2
+					for checkIdx >= 0 {
+						checkRune := runes[checkIdx]
+						checkClass := getBreakClass(checkRune)
+						if isClassOrVariant(checkClass, ClassCM) || checkClass == ClassZWJ {
+							checkIdx--
+							continue
+						}
+						// If preceded by NU, this is continuing decimal (like "123.45"), don't break
+						if checkClass == ClassNU {
+							isLeadingDecimal = false
+						}
+						break
+					}
+				}
+				if isLeadingDecimal {
+					// This is a leading decimal like ".35" - allow break before it
+					bytePos := len(string(runes[:i]))
+					breakPoints = append(breakPoints, bytePos)
+					prevClass = currClass
+					if currClass != ClassSP {
+						lastNonSpaceClass = currClass
+					}
+					continue
+				}
+			}
+		}
+
+		// LB25: Do not break within numeric expressions
+		// Implementation of numeric sequence detection
+		isInNumericContext := false
+		if currClass == ClassNU || currClass == ClassIS || currClass == ClassSY ||
+			isClassOrVariant(currClass, ClassCL) || currClass == ClassCP ||
+			isClassOrVariant(currClass, ClassPR) || isClassOrVariant(currClass, ClassPO) {
+			// Look back to find if we're in a numeric sequence
+			// Check for patterns: NU (NU | SY | IS)* ...
+			checkIdx := i - 1
+			foundNumInSequence := false
+			for checkIdx >= 0 {
+				checkRune := runes[checkIdx]
+				checkClass := getBreakClass(checkRune)
+
+				// Skip combining marks
+				if isClassOrVariant(checkClass, ClassCM) || checkClass == ClassZWJ {
+					checkIdx--
+					continue
+				}
+
+				// Check if we found a number or numeric separator
+				if checkClass == ClassNU {
+					foundNumInSequence = true
+					break
+				} else if checkClass == ClassIS || checkClass == ClassSY {
+					// Continue looking back past IS/SY
+					checkIdx--
+					continue
+				} else if isClassOrVariant(checkClass, ClassCL) || checkClass == ClassCP {
+					// CL/CP can be part of numeric expression, continue looking
+					checkIdx--
+					continue
+				} else if isClassOrVariant(checkClass, ClassOP) || checkClass == ClassHY {
+					// OP or HY before NU is ok, but only if preceded by PR/PO
+					// Continue looking back
+					checkIdx--
+					continue
+				} else if isClassOrVariant(checkClass, ClassPR) || isClassOrVariant(checkClass, ClassPO) {
+					// PR/PO can precede the numeric sequence
+					checkIdx--
+					continue
+				} else {
+					// Found non-numeric character, stop
+					break
+				}
+			}
+
+			if foundNumInSequence {
+				// We're in or after a numeric sequence
+				// LB25a: NU × (NU | SY | IS)
+				if prevClass == ClassNU && (currClass == ClassNU || currClass == ClassSY || currClass == ClassIS) {
+					isInNumericContext = true
+				}
+				// LB25b: NU (NU | SY | IS)* × (NU | SY | IS | CL | CP)
+				if (currClass == ClassNU || currClass == ClassSY || currClass == ClassIS ||
+					isClassOrVariant(currClass, ClassCL) || currClass == ClassCP) {
+					isInNumericContext = true
+				}
+				// LB25c: NU (NU | SY | IS)* (CL | CP)? × (PO | PR)
+				if (prevClass == ClassNU || prevClass == ClassIS || prevClass == ClassSY ||
+					isClassOrVariant(prevClass, ClassCL) || prevClass == ClassCP) &&
+					(isClassOrVariant(currClass, ClassPR) || isClassOrVariant(currClass, ClassPO)) {
+					isInNumericContext = true
+				}
+			}
+		}
+
+		// LB25d: (PR | PO) × ( OP | HY )? NU
+		if (isClassOrVariant(prevClass, ClassPR) || isClassOrVariant(prevClass, ClassPO)) &&
+			(currClass == ClassNU || isClassOrVariant(currClass, ClassOP) || currClass == ClassHY) {
+			// Look ahead to check if OP/HY is followed by NU
+			if currClass == ClassNU {
+				isInNumericContext = true
+			} else if (isClassOrVariant(currClass, ClassOP) || currClass == ClassHY) && i+1 < len(runes) {
+				nextRune := runes[i+1]
+				nextClass := getBreakClass(nextRune)
+				if nextClass == ClassNU {
+					isInNumericContext = true
+				}
+			}
+		}
+
+		if isInNumericContext {
+			// Don't break - we're in a numeric expression
+			prevClass = currClass
+			if currClass != ClassSP {
+				lastNonSpaceClass = currClass
+			}
+			continue
+		}
+
 		// Only add break points for:
 		// 1. Mandatory breaks (newlines, etc.)
 		// 2. Spaces (word boundaries)
