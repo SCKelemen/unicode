@@ -117,6 +117,43 @@ if uax50.IsUpright('A') {
 }
 ```
 
+### [uts51](./uts51) - Unicode Emoji
+
+Implementation of UTS #51 (Unicode Emoji) for emoji property detection, sequence validation, and terminal rendering support.
+
+**Status:** Complete with 100% conformance (5,223/5,223 tests passing)
+
+Supports:
+- **Emoji properties** - All 6 core emoji properties
+  - Emoji, Emoji_Presentation, Emoji_Modifier
+  - Emoji_Modifier_Base, Emoji_Component, Extended_Pictographic
+- **Sequence validation** - All emoji sequence types
+  - ZWJ sequences (family emoji, etc.)
+  - Modifier sequences (skin tones)
+  - Flag sequences (regional indicators)
+  - Keycap sequences (#️⃣, *️⃣, 0️⃣-9️⃣)
+  - Tag sequences (subdivision flags)
+- **Terminal rendering** - Width calculation for emoji display
+- **Integration** with UAX #11, #14, #29, #50
+
+```go
+import "github.com/SCKelemen/unicode/uts51"
+
+// Check if character is emoji
+if uts51.IsEmoji('😀') {
+    // Handle emoji
+}
+
+// Calculate width for terminal rendering
+width := uts51.EmojiWidth('😀')  // Returns 2 (like CJK characters)
+
+// Validate emoji sequences
+sequence := []rune{0x1F468, 0x200D, 0x1F469, 0x200D, 0x1F467}  // Family
+if uts51.IsValidEmojiSequence(sequence) {
+    // Valid ZWJ sequence
+}
+```
+
 ## Installation
 
 ```bash
@@ -124,6 +161,7 @@ go get github.com/SCKelemen/unicode/uax11
 go get github.com/SCKelemen/unicode/uax14
 go get github.com/SCKelemen/unicode/uax29
 go get github.com/SCKelemen/unicode/uax50
+go get github.com/SCKelemen/unicode/uts51
 ```
 
 ## Design Philosophy
@@ -145,10 +183,14 @@ All implementations follow the Unicode Standard and are tested against official 
   - Grapheme cluster breaking: 766/766 tests
   - Word breaking: 1,944/1,944 tests
   - Sentence breaking: 512/512 tests
+- **UTS #51 (Unicode Emoji)**: 100% conformance (5,223/5,223 tests)
+  - All 6 emoji properties correctly implemented
+  - Complete sequence validation (ZWJ, modifier, flag, keycap, tag sequences)
 
 ### Conformance Testing
 Implementations are validated using the official Unicode Character Database (UCD) test files:
 - [UAX #29 Test Files](https://www.unicode.org/Public/17.0.0/ucd/auxiliary/) - `GraphemeBreakTest.txt`, `WordBreakTest.txt`, `SentenceBreakTest.txt`
+- [UTS #51 Test Files](https://www.unicode.org/Public/emoji/17.0/) - `emoji-test.txt` with 5,223 test cases
 - [Unicode Character Database](https://www.unicode.org/Public/17.0.0/ucd/) - Character property data files
 
 The implementations follow the conformance model described in [UTR #33: Unicode Conformance Model](https://www.unicode.org/reports/tr33/), which defines what it means to conform to Unicode Standard specifications.
@@ -170,6 +212,7 @@ The implementations follow the conformance model described in [UTR #33: Unicode 
 - [UAX #14: Line Breaking](https://www.unicode.org/reports/tr14/)
 - [UAX #29: Text Segmentation](https://www.unicode.org/reports/tr29/)
 - [UAX #50: Vertical Text Layout](https://www.unicode.org/reports/tr50/)
+- [UTS #51: Unicode Emoji](https://www.unicode.org/reports/tr51/)
 
 ## License
 
