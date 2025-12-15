@@ -9,9 +9,33 @@ This repository provides Go packages for Unicode text processing algorithms, org
 
 ## Packages
 
-### uax9 - Bidirectional Algorithm
+### [uax9](./uax9) - Bidirectional Algorithm
 
-*(Coming soon)* Implementation of UAX #9 for handling bidirectional text (e.g., mixing Latin and Arabic/Hebrew scripts).
+Implementation of UAX #9 (Unicode Bidirectional Algorithm) for handling bidirectional text with mixing LTR and RTL scripts.
+
+**Status:** Complete with 100% conformance (513,494/513,494 tests passing)
+
+Supports:
+- **Full bidirectional text reordering** - Proper display of mixed LTR/RTL content
+- **Isolating run sequences (BD13)** - Advanced context isolation for complex layouts
+- **Explicit formatting characters** - LRE, RLE, LRO, RLO, PDF, LRI, RLI, FSI, PDI
+- **Deep embedding nesting** - Up to 125 levels of explicit embedding
+- **Bracket pair handling (N0)** - Proper neutral character resolution
+- **Automatic direction detection** - Smart paragraph base direction
+
+```go
+import "github.com/SCKelemen/unicode/uax9"
+
+// Reorder mixed LTR/RTL text
+text := "Hello שלום world"
+result := uax9.Reorder(text, uax9.DirectionLTR)
+
+// Auto-detect paragraph direction
+dir := uax9.GetParagraphDirection("שלום עולם")  // Returns DirectionRTL
+
+// Get bidi class of a character
+class := uax9.GetBidiClass('א')  // Returns R (Right-to-Left)
+```
 
 ### [uax11](./uax11) - East Asian Width
 
@@ -157,6 +181,7 @@ if uts51.IsValidEmojiSequence(sequence) {
 ## Installation
 
 ```bash
+go get github.com/SCKelemen/unicode/uax9
 go get github.com/SCKelemen/unicode/uax11
 go get github.com/SCKelemen/unicode/uax14
 go get github.com/SCKelemen/unicode/uax29
@@ -200,6 +225,11 @@ When Go's `unicode` package updates to Unicode 17.0.0, we will continue maintain
 All implementations follow the Unicode Standard and are tested against official Unicode conformance test suites where available:
 
 ### Test Coverage
+- **UAX #9 (Bidirectional Algorithm)**: 100% conformance (513,494/513,494 tests)
+  - All explicit embeddings and isolates
+  - Multi-isolate sequences and deep nesting (up to 125 levels)
+  - Empty isolate handling and overflow isolation
+  - Bracket pair matching and neutral resolution
 - **UAX #29 (Text Segmentation)**: 100% conformance (3,222/3,222 tests)
   - Grapheme cluster breaking: 766/766 tests
   - Word breaking: 1,944/1,944 tests
@@ -210,6 +240,7 @@ All implementations follow the Unicode Standard and are tested against official 
 
 ### Conformance Testing
 Implementations are validated using the official Unicode Character Database (UCD) test files:
+- [UAX #9 Test Files](https://www.unicode.org/Public/17.0.0/ucd/) - `BidiTest.txt` (513,494 tests), `BidiCharacterTest.txt`
 - [UAX #29 Test Files](https://www.unicode.org/Public/17.0.0/ucd/auxiliary/) - `GraphemeBreakTest.txt`, `WordBreakTest.txt`, `SentenceBreakTest.txt`
 - [UTS #51 Test Files](https://www.unicode.org/Public/emoji/17.0/) - `emoji-test.txt` with 5,223 test cases
 - [Unicode Character Database](https://www.unicode.org/Public/17.0.0/ucd/) - Character property data files

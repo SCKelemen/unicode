@@ -138,62 +138,13 @@ func parseExpectedReorder(line string) ([]int, error) {
 	return order, nil
 }
 
-// computeLevels computes the resolved levels for a sequence of bidi classes
+// computeLevels computes the resolved levels for a sequence of bidi classes.
+// This is a thin wrapper around the exported ComputeLevels function.
 func computeLevels(classes []BidiClass, paraLevel int) []int {
-	n := len(classes)
-	levels := make([]int, n)
-	for i := range levels {
-		levels[i] = paraLevel
-	}
-
-	// Keep original classes for L1 rule
-	originalClasses := make([]BidiClass, n)
-	copy(originalClasses, classes)
-
-	// Process explicit embeddings and isolates
-	processExplicitLevels(classes, levels, paraLevel)
-
-	// Save explicit levels for sos/eos computation
-	explicitLevels := make([]int, n)
-	copy(explicitLevels, levels)
-
-	// BD9: Determine matching isolate initiators and PDIs
-	matchingPDI, matchingInitiator := determineMatchingIsolates(classes)
-
-	// BD13: Determine isolating run sequences
-	sequences := determineIsolatingRunSequences(classes, levels, matchingPDI, matchingInitiator)
-
-	// Process each isolating run sequence
-	for _, seqIndexes := range sequences {
-		// Use explicit levels for sos/eos computation
-		seq := newIsolatingRunSequence(seqIndexes, classes, originalClasses, explicitLevels, paraLevel)
-
-		// Resolve weak types (W1-W7) within this sequence
-		seq.resolveWeakTypes()
-
-		// Resolve neutral types (N0-N2) within this sequence
-		seq.resolveNeutralTypes()
-
-		// Resolve implicit levels (I1-I2) within this sequence
-		seq.resolveImplicitLevels()
-
-		// Apply resolved types and levels back to original arrays
-		for i, origIdx := range seq.indexes {
-			classes[origIdx] = seq.types[i]
-			levels[origIdx] = seq.levels[i]
-		}
-	}
-
-	// Adjust empty isolate formatting character levels to match surrounding context
-	adjustEmptyIsolateFormattingLevels(classes, originalClasses, levels, matchingPDI, paraLevel)
-
-	// Adjust ALL isolate formatting character levels to match surrounding context
-	adjustAllIsolateFormattingLevels(classes, levels, matchingPDI, matchingInitiator, paraLevel)
-
-	// Apply L1 rule
-	applyL1(originalClasses, levels, paraLevel)
-
-	return levels
+	// Make a copy since ComputeLevels modifies the classes array
+	classesCopy := make([]BidiClass, len(classes))
+	copy(classesCopy, classes)
+	return ComputeLevels(classesCopy, paraLevel)
 }
 
 // computeReorder computes the visual reordering for a sequence
