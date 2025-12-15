@@ -26,6 +26,29 @@ text := "Hello world! This is a test."
 breaks := uax14.FindLineBreakOpportunities(text, uax14.HyphensManual)
 ```
 
+### [uax50](./uax50) - Vertical Text Layout
+
+Implementation of UAX #50 (Unicode Vertical Text Layout) for determining character orientation in vertical text.
+
+Supports:
+- Vertical orientation property lookup (Rotated, Upright, TransformedUpright, TransformedRotated)
+- Character rotation determination for vertical text
+- Glyph transformation detection for vertical-specific forms
+- Complete Unicode 17.0.0 data
+- East Asian typography and mixed-script vertical layouts
+
+```go
+import "github.com/SCKelemen/unicode/uax50"
+
+// Determine how to display characters in vertical text
+orientation := uax50.LookupOrientation('中')  // Returns Upright
+if uax50.IsUpright('A') {
+    // Display upright
+} else {
+    // Rotate 90 degrees clockwise
+}
+```
+
 ### uax9 - Bidirectional Algorithm
 
 *(Coming soon)* Implementation of UAX #9 for handling bidirectional text (e.g., mixing Latin and Arabic/Hebrew scripts).
@@ -38,6 +61,7 @@ breaks := uax14.FindLineBreakOpportunities(text, uax14.HyphensManual)
 
 ```bash
 go get github.com/SCKelemen/unicode/uax14
+go get github.com/SCKelemen/unicode/uax50
 ```
 
 ## Design Philosophy
@@ -57,6 +81,7 @@ These implementations focus on practical text layout and rendering needs:
 
 - [Unicode Standard Annexes](https://www.unicode.org/reports/)
 - [UAX #14: Line Breaking](https://www.unicode.org/reports/tr14/)
+- [UAX #50: Vertical Text Layout](https://www.unicode.org/reports/tr50/)
 - [UAX #9: Bidirectional Algorithm](https://www.unicode.org/reports/tr9/)
 - [UAX #29: Text Segmentation](https://www.unicode.org/reports/tr29/)
 
