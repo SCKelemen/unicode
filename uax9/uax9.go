@@ -366,34 +366,28 @@ func adjustEmptyIsolateFormattingLevels(classes []BidiClass, originalClasses []B
 					return (leftIsStrongLTR && rightIsStrongLTR) || (leftIsStrongRTL && rightIsStrongRTL)
 				}
 
-				// Helper: check if at least one side is strong with compatible directionality
-				hasStrongCompat := func(leftIdx, rightIdx int) bool {
+				// Helper: check if LEFT is strong with compatible directionality to RIGHT
+				leftStrongCompat := func(leftIdx, rightIdx int) bool {
 					if leftIdx < 0 || rightIdx < 0 {
 						return false
 					}
 					leftClass := originalClasses[leftIdx]
 					rightClass := originalClasses[rightIdx]
 
+					// LEFT must be strong
 					leftIsStrongLTR := leftClass == ClassL
 					leftIsStrongRTL := leftClass == ClassR || leftClass == ClassAL
-					rightIsStrongLTR := rightClass == ClassL
-					rightIsStrongRTL := rightClass == ClassR || rightClass == ClassAL
-
-					// At least one must be strong
-					leftIsStrong := leftIsStrongLTR || leftIsStrongRTL
-					rightIsStrong := rightIsStrongLTR || rightIsStrongRTL
-					if !leftIsStrong && !rightIsStrong {
+					if !leftIsStrongLTR && !leftIsStrongRTL {
 						return false
 					}
 
-					// Check compatible directionality (both LTR or both RTL)
-					// Numbers (EN, AN) are considered compatible with their directionality
-					leftIsLTRType := leftClass == ClassL || leftClass == ClassEN
-					rightIsLTRType := rightClass == ClassL || rightClass == ClassEN
-					leftIsRTLType := leftClass == ClassR || leftClass == ClassAL || leftClass == ClassAN
-					rightIsRTLType := rightClass == ClassR || rightClass == ClassAL || leftClass == ClassAN
+					// Check compatible directionality
+					leftIsLTR := leftClass == ClassL || leftClass == ClassEN
+					rightIsLTR := rightClass == ClassL || rightClass == ClassEN
+					leftIsRTL := leftClass == ClassR || leftClass == ClassAL || leftClass == ClassAN
+					rightIsRTL := rightClass == ClassR || rightClass == ClassAL || rightClass == ClassAN
 
-					return (leftIsLTRType && rightIsLTRType) || (leftIsRTLType && rightIsRTLType)
+					return (leftIsLTR && rightIsLTR) || (leftIsRTL && rightIsRTL)
 				}
 
 				// Rule: Empty isolates level assignment based on surrounding context
@@ -407,18 +401,21 @@ func adjustEmptyIsolateFormattingLevels(classes []BidiClass, originalClasses []B
 							// Example: R(1) LRI PDI R(1) at para=0 → empty at 1
 							levels[i] = leftLevel
 							levels[pdiIdx] = leftLevel
-						} else if leftIdx >= 0 && rightIdx >= 0 && originalClasses[leftIdx] == originalClasses[rightIdx] {
-							// Both same bidi class (e.g., AN...AN) → use paraLevel+1
-							// Example: AN(2) LRI PDI AN(2) at para=0 → empty at 1
-							levels[i] = paraLevel + 1
-							levels[pdiIdx] = paraLevel + 1
-						} else if hasStrongCompat(leftIdx, rightIdx) {
-							// At least one strong with compatible directionality → match surrounding level
+						} else if leftStrongCompat(leftIdx, rightIdx) {
+							// LEFT is strong with compatible directionality → match surrounding level
 							// Example: L(2) LRI PDI EN(2) at para=1 → empty at 2
 							levels[i] = leftLevel
 							levels[pdiIdx] = leftLevel
+						} else if leftIdx >= 0 && rightIdx >= 0 && originalClasses[leftIdx] == originalClasses[rightIdx] {
+							// Both same class (e.g., AN...AN, EN...EN) → use surrounding level - 1
+							// Example: AN(2) LRI PDI AN(2) at para=0 → empty at 1 (2-1)
+							// Example: AN(2) LRI PDI AN(2) at para=1 → empty at 1 (2-1)
+							levels[i] = leftLevel - 1
+							levels[pdiIdx] = leftLevel - 1
 						}
-						// else: incompatible or no strong type → stay at paragraph level
+						// else: incompatible directionality or LEFT is weak → stay at paragraph level
+						// Example: EN(2) LRI PDI L(2) at para=1 → empty stays at 1
+						// Example: L(2) LRI PDI AN(2) at para=1 → empty stays at 1
 					} else {
 						// Different levels → use minimum (closer to paragraph)
 						// Example: R(1) LRI PDI EN(2) at para=0 → empty at 1
