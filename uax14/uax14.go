@@ -4408,6 +4408,44 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			}
 		}
 
+		// LB28.13: Do not break after Virama before Aksara
+		// AK × VI × AK or AK × VI × CM × AK or AS × VI × AK
+		// Need to look back past CM to find VI, then check if VI follows AK/AS
+		if currClass == ClassAK || currClass == ClassAS {
+			// Look back past CM to find the actual base character
+			checkIdx := i - 1
+			foundVIorVF := false
+			viIndex := -1
+			for checkIdx >= 0 {
+				checkRune := runes[checkIdx]
+				checkClass := getBreakClass(checkRune)
+				if isClassOrVariant(checkClass, ClassCM) || checkClass == ClassZWJ {
+					// Skip over CM/ZWJ
+					checkIdx--
+					continue
+				}
+				// Found non-CM character
+				if checkClass == ClassVI || checkClass == ClassVF {
+					foundVIorVF = true
+					viIndex = checkIdx
+				}
+				break
+			}
+			if foundVIorVF && viIndex > 0 {
+				// Found VI/VF - now check if it follows AK or AS
+				viPrevRune := runes[viIndex-1]
+				viPrevClass := getBreakClass(viPrevRune)
+				if viPrevClass == ClassAK || viPrevClass == ClassAS {
+					// AK/AS × VI × (CM)* × AK/AS - don't break
+					prevClass = currClass
+					if currClass != ClassSP {
+						lastNonSpaceClass = currClass
+					}
+					continue
+				}
+			}
+		}
+
 		// LB30a: Do not break within emoji flag sequences
 		// Break between regional indicators if and only if there is an even number of RIs before the break point
 		// RI × RI for pairs, RI × RI ÷ RI for triples
