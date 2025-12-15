@@ -606,9 +606,11 @@ func resolveNeutralTypes(classes []BidiClass, levels []int, paraLevel int) {
 	}
 
 	// N1 and N2: Neutrals take direction from surrounding strong types
+	// Note: PDI is treated as ON for neutral resolution when unmatched
 	for i := 0; i < n; i++ {
 		if classes[i] == ClassWS || classes[i] == ClassON ||
-			classes[i] == ClassB || classes[i] == ClassS {
+			classes[i] == ClassB || classes[i] == ClassS ||
+			classes[i] == ClassPDI {
 
 			// Find preceding strong type
 			prevIsL := false
@@ -659,7 +661,8 @@ func resolveNeutralTypes(classes []BidiClass, levels []int, paraLevel int) {
 func applyL1(classes []BidiClass, levels []int, paraLevel int) {
 	n := len(classes)
 
-	// L1: Reset segment separators, paragraph separators, trailing whitespace, and isolates
+	// L1: Reset segment separators, paragraph separators, and preceding/trailing whitespace and isolates
+	// Per UAX#9 L1: reset separators and any WS/isolates PRECEDING them (not following)
 	for i := 0; i < n; i++ {
 		if levels[i] < 0 {
 			continue
@@ -668,13 +671,18 @@ func applyL1(classes []BidiClass, levels []int, paraLevel int) {
 		// Segment and paragraph separators get paragraph level
 		if classes[i] == ClassS || classes[i] == ClassB {
 			levels[i] = paraLevel
-			// Also reset any following whitespace, separators, and isolates
-			for j := i + 1; j < n; j++ {
-				if levels[j] >= 0 && (classes[j] == ClassWS || classes[j] == ClassS ||
+			// Also reset any PRECEDING whitespace, separators, and isolates
+			for j := i - 1; j >= 0; j-- {
+				if levels[j] < 0 {
+					// Skip removed characters
+					continue
+				}
+				if classes[j] == ClassWS || classes[j] == ClassS ||
 					classes[j] == ClassB || classes[j] == ClassLRI || classes[j] == ClassRLI ||
-					classes[j] == ClassFSI || classes[j] == ClassPDI) {
+					classes[j] == ClassFSI || classes[j] == ClassPDI {
 					levels[j] = paraLevel
-				} else if levels[j] >= 0 {
+				} else {
+					// Stop when we hit a non-whitespace/non-isolate
 					break
 				}
 			}
