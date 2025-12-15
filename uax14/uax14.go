@@ -4490,6 +4490,35 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			}
 		}
 
+		// Pattern 4: CJK curly quotes ÷ ID (allow breaks after CJK closing quotes before ideographs)
+		// Only when the closing quote follows CJK punctuation/ideographs, not Latin letters
+		if isClassOrVariant(prevClass, ClassQU_Pf) && isClassOrVariant(currClass, ClassID) && i > 0 {
+			// Only apply to CJK curly quotes (U+201C/U+201D/U+2018/U+2019), not European guillemets (U+00AB/U+00BB)
+			prevRune := runes[i-1]
+			if prevRune == '\u201C' || prevRune == '\u201D' || prevRune == '\u2018' || prevRune == '\u2019' {
+				// Check if the character BEFORE the quote is CJK punctuation/ideograph (not Latin)
+				// This ensures we only break when the quote is in CJK context, not English context
+				if i >= 2 {
+					beforeQuoteRune := runes[i-2]
+					beforeQuoteClass := getBreakClass(beforeQuoteRune)
+					// Allow break if preceded by CJK classes: EX (fullwidth punctuation), ID (ideographs), CL (closing), NS (non-starter)
+					if isClassOrVariant(beforeQuoteClass, ClassEX) ||
+						isClassOrVariant(beforeQuoteClass, ClassID) ||
+						isClassOrVariant(beforeQuoteClass, ClassCL) ||
+						isClassOrVariant(beforeQuoteClass, ClassNS) {
+						// CJK context: allow break after quote before ideograph
+						bytePos := len(string(runes[:i]))
+						breakPoints = append(breakPoints, bytePos)
+						prevClass = currClass
+						if currClass != ClassSP {
+							lastNonSpaceClass = currClass
+						}
+						continue
+					}
+				}
+			}
+		}
+
 		if prevClass == ClassSP {
 			// Pattern 1: SP ÷ QU_Pf after CP/CL/EX/IS/SY
 			if isClassOrVariant(currClass, ClassQU_Pf) {
