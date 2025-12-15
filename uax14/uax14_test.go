@@ -34,7 +34,7 @@ func TestFindLineBreakOpportunities(t *testing.T) {
 			name:     "multiple spaces",
 			text:     "hello  world",
 			hyphens:  HyphensManual,
-			expected: []int{0, 6, 7, 12},
+			expected: []int{0, 7, 12}, // LB7: × SP (don't break between spaces)
 		},
 		{
 			name:     "with newline",

@@ -368,6 +368,7 @@ var pairTable = map[[2]BreakClass]BreakAction{
 	{ClassXX, ClassNL}: BreakProhibited,
 
 	// Space
+	{ClassSP, ClassSP}: BreakProhibited, // Do not break between spaces (LB18 special case)
 	{ClassSP, ClassXX}: BreakIndirect,
 	{ClassXX, ClassSP}: BreakProhibited,
 
@@ -693,14 +694,17 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 			// But respect LB6, LB13, LB14
 			if prevClass == ClassSP {
 				// LB14: Do not break after OP, even if spaces intervene (OP SP* ×)
+				// LB19: Do not break before or after QU (× SP* QU and QU SP* ×)
 				if lastNonSpaceClass == ClassOP || lastNonSpaceClass == ClassQU {
 					// Don't break - we're in "OP SP*" or "QU SP*" sequence
+				} else if currClass == ClassQU {
+					// LB19: Do not break before QU (× SP* QU)
 				} else if currClass == ClassBK || currClass == ClassCR || currClass == ClassLF ||
 					currClass == ClassNL || currClass == ClassCL || currClass == ClassCP ||
-					currClass == ClassEX || currClass == ClassIS || currClass == ClassNS {
+					currClass == ClassEX || currClass == ClassIS {
 					// LB6: Do not break before hard line breaks (BK, CR, LF, NL)
 					// LB13: Do not break before CL, CP, EX, IS (closing punct)
-					// LB16: Do not break before NS (nonstarters)
+					// Note: NS removed - LB18 (break after space) overrides LB16 (× NS)
 				} else {
 					bytePos := len(string(runes[:i]))
 					breakPoints = append(breakPoints, bytePos)
@@ -743,16 +747,19 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 				}
 			} else if prevClass == ClassSP {
 				// LB18: Break after spaces (word boundaries)
-				// But respect LB6, LB13, LB14, LB16
+				// But respect LB6, LB13, LB14, LB19
 				// LB14: Do not break after OP, even if spaces intervene (OP SP* ×)
+				// LB19: Do not break before or after QU (× SP* QU and QU SP* ×)
 				if lastNonSpaceClass == ClassOP || lastNonSpaceClass == ClassQU {
 					// Don't break - we're in "OP SP*" or "QU SP*" sequence
+				} else if currClass == ClassQU {
+					// LB19: Do not break before QU (× SP* QU)
 				} else if currClass == ClassBK || currClass == ClassCR || currClass == ClassLF ||
 					currClass == ClassNL || currClass == ClassCL || currClass == ClassCP ||
-					currClass == ClassEX || currClass == ClassIS || currClass == ClassNS {
+					currClass == ClassEX || currClass == ClassIS {
 					// LB6: Do not break before hard line breaks
 					// LB13: Do not break before CL, CP, EX, IS
-					// LB16: Do not break before NS (nonstarters)
+					// Note: NS removed - LB18 (break after space) overrides LB16 (× NS)
 				} else {
 					bytePos := len(string(runes[:i]))
 					breakPoints = append(breakPoints, bytePos)

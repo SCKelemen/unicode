@@ -177,7 +177,7 @@ func TestEdgeCases_EmptyAndSpaces(t *testing.T) {
 			name:     "only spaces",
 			text:     "   ",
 			hyphens:  HyphensManual,
-			expected: []int{0, 1, 2, 3}, // Can break after each space
+			expected: []int{0, 3}, // LB7: × SP (don't break before space, so no breaks between spaces)
 		},
 		{
 			name:     "single space",
@@ -189,13 +189,13 @@ func TestEdgeCases_EmptyAndSpaces(t *testing.T) {
 			name:     "leading spaces",
 			text:     "  hello",
 			hyphens:  HyphensManual,
-			expected: []int{0, 1, 2, 7},
+			expected: []int{0, 2, 7}, // LB7: × SP (don't break between leading spaces)
 		},
 		{
 			name:     "trailing spaces",
 			text:     "hello  ",
 			hyphens:  HyphensManual,
-			expected: []int{0, 6, 7},
+			expected: []int{0, 7}, // LB7: × SP (don't break between trailing spaces)
 		},
 	}
 
