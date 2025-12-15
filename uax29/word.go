@@ -1,11 +1,5 @@
 package uax29
 
-import (
-	"unicode"
-
-	"github.com/SCKelemen/unicode/uts51"
-)
-
 // WordBreakClass represents the Word_Break property values defined in UAX #29.
 //
 // These classes are used to implement the word boundary detection algorithm.
@@ -112,144 +106,27 @@ const (
 	WBExtendedPictographic
 )
 
-// getWordBreakClass returns the word break class for a rune
+// getWordBreakClass returns the word break class for a rune.
+// This function uses binary search on the generated word break property data.
 func getWordBreakClass(r rune) WordBreakClass {
-	// CR and LF
-	if r == 0x000D {
-		return WBCR
-	}
-	if r == 0x000A {
-		return WBLF
+	// Binary search on the generated data table
+	left, right := 0, len(wordBreakData)-1
+
+	for left <= right {
+		mid := (left + right) / 2
+		entry := wordBreakData[mid]
+
+		if r < entry.start {
+			right = mid - 1
+		} else if r > entry.end {
+			left = mid + 1
+		} else {
+			// Found the range containing r
+			return entry.class
+		}
 	}
 
-	// Newline
-	if r == 0x000B || r == 0x000C || r == 0x0085 || r == 0x2028 || r == 0x2029 {
-		return WBNewline
-	}
-
-	// ZWJ
-	if r == uts51.ZeroWidthJoiner {
-		return WBZWJ
-	}
-
-	// Regional Indicators
-	if uts51.IsRegionalIndicator(r) {
-		return WBRegionalIndicator
-	}
-
-	// Single_Quote
-	if r == 0x0027 {
-		return WBSingleQuote
-	}
-
-	// Double_Quote
-	if r == 0x0022 {
-		return WBDoubleQuote
-	}
-
-	// MidNumLet
-	if r == 0x002E || r == 0x2018 || r == 0x2019 || r == 0x2024 || r == 0xFE52 || r == 0xFF07 || r == 0xFF0E {
-		return WBMidNumLet
-	}
-
-	// MidLetter
-	if r == 0x003A || r == 0x00B7 || r == 0x0387 || r == 0x055F || r == 0x05F4 || r == 0x2027 || r == 0xFE13 || r == 0xFE55 || r == 0xFF1A {
-		return WBMidLetter
-	}
-
-	// MidNum
-	if r == 0x002C || r == 0x003B || r == 0x037E || r == 0x0589 || r == 0x060C || r == 0x060D ||
-		r == 0x066C || r == 0x07F8 || r == 0x2044 || r == 0xFE10 || r == 0xFE14 || r == 0xFE50 || r == 0xFF0C || r == 0xFF1B {
-		return WBMidNum
-	}
-
-	// ExtendNumLet
-	if r == 0x005F || r == 0x203F || r == 0x2040 || r == 0x2054 || r == 0xFE33 || r == 0xFE34 || r == 0xFE4D || r == 0xFE4E || r == 0xFE4F || r == 0xFF3F {
-		return WBExtendNumLet
-	}
-
-	// WSegSpace
-	if r == 0x0020 || r == 0x1680 || (r >= 0x2000 && r <= 0x2006) || (r >= 0x2008 && r <= 0x200A) || r == 0x205F || r == 0x3000 {
-		return WBWSegSpace
-	}
-
-	// ZWNJ (U+200C) is treated as Extend
-	if r == 0x200C {
-		return WBExtend
-	}
-
-	// Emoji modifiers (skin tones) are Extend for word breaking
-	if uts51.IsEmojiModifier(r) {
-		return WBExtend
-	}
-
-	// Special Cf characters with specific Word_Break properties
-	// U+06DD (Arabic End of Ayah) is Numeric for word breaking
-	if r == 0x06DD {
-		return WBNumeric
-	}
-	// U+070F (Syriac Abbreviation Mark) is ALetter for word breaking
-	if r == 0x070F {
-		return WBALetter
-	}
-
-	// Format
-	if unicode.Is(unicode.Cf, r) && r != 0x200C && r != uts51.ZeroWidthJoiner {
-		return WBFormat
-	}
-
-	// Extend (combining marks)
-	if unicode.Is(unicode.Me, r) || unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Mc, r) {
-		return WBExtend
-	}
-
-	// Katakana
-	if (r >= 0x3031 && r <= 0x3035) || (r >= 0x309B && r <= 0x309C) || (r >= 0x30A0 && r <= 0x30FA) ||
-		(r >= 0x30FC && r <= 0x30FF) || (r >= 0x31F0 && r <= 0x31FF) || (r >= 0x32D0 && r <= 0x32FE) ||
-		(r >= 0x3300 && r <= 0x3357) || r == 0xFF70 || (r >= 0xFF9E && r <= 0xFF9F) || (r >= 0x1B000 && r <= 0x1B11F) ||
-		(r >= 0x1B132 && r <= 0x1B132) || (r >= 0x1B150 && r <= 0x1B152) {
-		return WBKatakana
-	}
-
-	// Hebrew_Letter
-	if r >= 0x05D0 && r <= 0x05EA {
-		return WBHebrewLetter
-	}
-	if r >= 0x05EF && r <= 0x05F2 {
-		return WBHebrewLetter
-	}
-
-	// Numeric
-	if unicode.IsDigit(r) {
-		return WBNumeric
-	}
-
-	// ALetter - includes some non-letter symbols
-	if unicode.IsLetter(r) {
-		return WBALetter
-	}
-	// Special ALetter symbols (So and Nl categories that are ALetter for word breaking)
-	if (r >= 0x16EE && r <= 0x16F0) || (r >= 0x2160 && r <= 0x2182) || (r >= 0x2185 && r <= 0x2188) {
-		return WBALetter
-	}
-	if (r >= 0x24B6 && r <= 0x24E9) { // Circled letters
-		return WBALetter
-	}
-	if (r >= 0xA6E6 && r <= 0xA6EF) || (r >= 0x10140 && r <= 0x10174) || r == 0x10341 || r == 0x1034A {
-		return WBALetter
-	}
-	if (r >= 0x103D1 && r <= 0x103D5) || (r >= 0x12400 && r <= 0x1246E) {
-		return WBALetter
-	}
-	if (r >= 0x1F130 && r <= 0x1F149) || (r >= 0x1F150 && r <= 0x1F169) || (r >= 0x1F170 && r <= 0x1F189) {
-		return WBALetter
-	}
-
-	// Extended Pictographic (after letter check)
-	if isExtendedPictographic(r) {
-		return WBExtendedPictographic
-	}
-
+	// Default: Other
 	return WBOther
 }
 

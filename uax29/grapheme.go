@@ -1,8 +1,6 @@
 package uax29
 
 import (
-	"unicode"
-
 	"github.com/SCKelemen/unicode/uts51"
 )
 
@@ -83,115 +81,29 @@ const (
 	// Syllables composed of L + V + T.
 	// See UAX #29 GB6-GB8: https://www.unicode.org/reports/tr29/#GB6
 	GBLVT
-
-	// GBExtendedPictographic represents emoji and pictographic characters.
-	// Used in emoji sequences and ZWJ sequences.
-	// See UAX #29 GB11: https://www.unicode.org/reports/tr29/#GB11
-	GBExtendedPictographic
 )
 
-// getGraphemeBreakClass returns the grapheme cluster break class for a rune
+// getGraphemeBreakClass returns the grapheme cluster break class for a rune.
+// This function uses binary search on the generated grapheme break property data.
 func getGraphemeBreakClass(r rune) GraphemeBreakClass {
-	// CR and LF
-	if r == 0x000D {
-		return GBCR
-	}
-	if r == 0x000A {
-		return GBLF
-	}
+	// Binary search on the generated data table
+	left, right := 0, len(graphemeBreakData)-1
 
-	// ZWJ
-	if r == uts51.ZeroWidthJoiner {
-		return GBZWJ
-	}
+	for left <= right {
+		mid := (left + right) / 2
+		entry := graphemeBreakData[mid]
 
-	// Regional Indicators (U+1F1E6..U+1F1FF)
-	if uts51.IsRegionalIndicator(r) {
-		return GBRegionalIndicator
-	}
-
-	// ZWNJ (U+200C) is treated as Extend
-	if r == 0x200C {
-		return GBExtend
-	}
-
-	// Prepend (must check before Control, as many Prepend chars are in Cf category)
-	if isPrepend(r) {
-		return GBPrepend
-	}
-
-	// Control characters
-	// Note: Most Cf characters are Control, but Prepend chars (checked above) are excluded
-	// Note: Only specific Cn (unassigned) chars are Control, not all of them
-	// We use a simplified check here - a full implementation would need GraphemeBreakProperty.txt
-	if unicode.Is(unicode.Cc, r) {
-		// Exclude CR, LF (which have their own classes)
-		if r != 0x000D && r != 0x000A {
-			return GBControl
+		if r < entry.start {
+			right = mid - 1
+		} else if r > entry.end {
+			left = mid + 1
+		} else {
+			// Found the range containing r
+			return entry.class
 		}
 	}
-	// Common Cf control characters (excluding Prepend which was checked earlier)
-	if (r >= 0x200B && r <= 0x200F) || (r >= 0x202A && r <= 0x202E) || (r >= 0x2060 && r <= 0x2064) || (r >= 0x2066 && r <= 0x206F) {
-		return GBControl
-	}
-	if r == 0x00AD || r == 0x061C || r == 0x180E || r == 0xFEFF || (r >= 0xFFF9 && r <= 0xFFFB) {
-		return GBControl
-	}
-	// Line and paragraph separators
-	if r == 0x2028 || r == 0x2029 {
-		return GBControl
-	}
 
-	// Hangul Syllables
-	if r >= 0xAC00 && r <= 0xD7A3 {
-		syllableIndex := r - 0xAC00
-		if syllableIndex%28 == 0 {
-			return GBLV
-		}
-		return GBLVT
-	}
-
-	// Hangul Jamo
-	if r >= 0x1100 && r <= 0x115F { // L Jamo
-		return GBL
-	}
-	if r >= 0xA960 && r <= 0xA97C { // Extended L Jamo
-		return GBL
-	}
-	if (r >= 0x1160 && r <= 0x11A7) || (r >= 0xD7B0 && r <= 0xD7C6) { // V Jamo
-		return GBV
-	}
-	if (r >= 0x11A8 && r <= 0x11FF) || (r >= 0xD7CB && r <= 0xD7FB) { // T Jamo
-		return GBT
-	}
-
-	// Emoji modifiers (skin tones) are Extend (must check before ExtendedPictographic)
-	if uts51.IsEmojiModifier(r) {
-		return GBExtend
-	}
-
-	// Extended Pictographic
-	// This is a simplified check - full implementation would need the full Unicode data
-	if isExtendedPictographic(r) {
-		return GBExtendedPictographic
-	}
-
-	// Extend (combining marks, modifiers)
-	if unicode.Is(unicode.Me, r) || unicode.Is(unicode.Mn, r) {
-		return GBExtend
-	}
-
-	// Spacing marks
-	// Note: Only SOME Mc characters are SpacingMark for grapheme breaking
-	// Myanmar U+102C is Mc but NOT SpacingMark
-	if unicode.Is(unicode.Mc, r) {
-		// Exclude Myanmar vowel signs that are not SpacingMark
-		if (r >= 0x1023 && r <= 0x1030 && r != 0x1031) || (r >= 0x1040 && r <= 0x104F) {
-			return GBOther
-		}
-		return GBSpacingMark
-	}
-
+	// Default: Other
 	return GBOther
 }
 
@@ -268,39 +180,6 @@ func isIndicConjunctConsonant(r rune) bool {
 	}
 	// Khmer consonants
 	if (r >= 0x1780 && r <= 0x17A2) || (r >= 0x17A5 && r <= 0x17A7) || (r >= 0x17A9 && r <= 0x17B3) {
-		return true
-	}
-	return false
-}
-
-// isPrepend checks if a rune has the Prepend property
-func isPrepend(r rune) bool {
-	// Prepend characters from Unicode GraphemeBreakProperty.txt
-	if r >= 0x0600 && r <= 0x0605 {
-		return true
-	}
-	if r == 0x06DD || r == 0x070F {
-		return true
-	}
-	if r >= 0x0890 && r <= 0x0891 {
-		return true
-	}
-	if r == 0x08E2 || r == 0x0D4E {
-		return true
-	}
-	if r == 0x110BD || r == 0x110CD {
-		return true
-	}
-	if r >= 0x111C2 && r <= 0x111C3 {
-		return true
-	}
-	if r == 0x113D1 || r == 0x1193F || r == 0x11941 {
-		return true
-	}
-	if r >= 0x11A84 && r <= 0x11A89 {
-		return true
-	}
-	if r == 0x11D46 || r == 0x11F02 {
 		return true
 	}
 	return false
@@ -444,7 +323,7 @@ func FindGraphemeBreaks(text string) []int {
 					break
 				}
 			}
-		} else if curr == GBExtendedPictographic {
+		} else if isExtendedPictographic(runes[i]) {
 			// GB11: ExtendedPictographic Extend* ZWJ × ExtendedPictographic
 			// Check if there's a ZWJ before current position (with optional Extend in between)
 			j := i - 1
@@ -459,7 +338,7 @@ func FindGraphemeBreaks(text string) []int {
 				for j >= 0 && getGraphemeBreakClass(runes[j]) == GBExtend {
 					j--
 				}
-				if j >= 0 && getGraphemeBreakClass(runes[j]) == GBExtendedPictographic {
+				if j >= 0 && isExtendedPictographic(runes[j]) {
 					// We found the pattern: ExtPict Extend* ZWJ Extend* ExtPict
 					shouldBreak = false
 				}
