@@ -4389,22 +4389,46 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 
 		// LB21: Special handling for HY after CP, CL, or HL
 		// Pattern: CP × HY ÷, CL × HY ÷, or HL × HY ÷
+		// Also: HY × HY ÷ AL after CP/CL (punycode/domain names like "xn--a")
 		// Even though CP/CL/HL prohibit breaks before HY, we should allow breaks after HY
 		if prevClass == ClassHY && i >= 2 {
 			// Look back to see if HY follows CP, CL, or HL
 			prevPrevRune := runes[i-2]
 			prevPrevClass := getBreakClass(prevPrevRune)
+			shouldBreak := false
+
 			if isClassOrVariant(prevPrevClass, ClassCP) || isClassOrVariant(prevPrevClass, ClassCL) || prevPrevClass == ClassHL {
 				// CP × HY ÷, CL × HY ÷, or HL × HY ÷ - allow break after HY
-				if currClass != ClassSP && currClass != ClassZW && currClass != ClassCM {
-					bytePos := len(string(runes[:i]))
-					breakPoints = append(breakPoints, bytePos)
-					prevClass = currClass
-					if currClass != ClassSP {
-						lastNonSpaceClass = currClass
+				shouldBreak = true
+			} else if prevPrevClass == ClassHY && isClassOrVariant(currClass, ClassAL) {
+				// HY × HY ÷ AL - check if this follows CP/CL in the context
+				// Pattern: CP/CL × ... × AL × HY × HY ÷ AL (like "(http://)xn--a" or "{http://}xn--a")
+				// Look back past the double hyphen and any AL to find CP/CL
+				checkIdx := i - 3
+				for checkIdx >= 0 {
+					checkRune := runes[checkIdx]
+					checkClass := getBreakClass(checkRune)
+					if checkClass == ClassSP || isClassOrVariant(checkClass, ClassCM) || checkClass == ClassZWJ || isClassOrVariant(checkClass, ClassAL) {
+						// Skip spaces, combining marks, and AL characters
+						checkIdx--
+						continue
 					}
-					continue
+					// Check if we find CP or CL
+					if isClassOrVariant(checkClass, ClassCP) || isClassOrVariant(checkClass, ClassCL) {
+						shouldBreak = true
+					}
+					break
 				}
+			}
+
+			if shouldBreak && currClass != ClassSP && currClass != ClassZW && currClass != ClassCM {
+				bytePos := len(string(runes[:i]))
+				breakPoints = append(breakPoints, bytePos)
+				prevClass = currClass
+				if currClass != ClassSP {
+					lastNonSpaceClass = currClass
+				}
+				continue
 			}
 		}
 
