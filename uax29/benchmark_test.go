@@ -309,3 +309,56 @@ func BenchmarkThreeSeparatePassesLong(b *testing.B) {
 		_ = FindSentenceBreaks(benchTextLong)
 	}
 }
+
+// Test rule-based grapheme implementation
+
+func TestFindGraphemeBreaksWithRules(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"Empty", ""},
+		{"Simple", "Hello, world!"},
+		{"Unicode", "Hello 世界! שלום"},
+		{"Emoji", "Hello 👨‍👩‍👧‍👦 world"},
+		{"Hangul", "한글"},
+		{"Regional Indicators", "🇺🇸🇬🇧"},
+		{"Combining Marks", "café"},
+		{"Mixed", benchTextMedium},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Get results from rule-based implementation
+			result := FindGraphemeBreaksWithRules(tt.input)
+
+			// Get results from original implementation
+			expected := FindGraphemeBreaks(tt.input)
+
+			// Verify they match
+			if !equalSlices(result, expected) {
+				t.Errorf("Grapheme breaks mismatch\n  Got:      %v\n  Expected: %v", result, expected)
+			}
+		})
+	}
+}
+
+// Benchmarks for rule-based implementation
+
+func BenchmarkFindGraphemeBreaksWithRulesShort(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FindGraphemeBreaksWithRules(benchTextShort)
+	}
+}
+
+func BenchmarkFindGraphemeBreaksWithRulesMedium(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FindGraphemeBreaksWithRules(benchTextMedium)
+	}
+}
+
+func BenchmarkFindGraphemeBreaksWithRulesLong(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FindGraphemeBreaksWithRules(benchTextLong)
+	}
+}

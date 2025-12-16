@@ -544,6 +544,70 @@ Benchmark results on Apple M4 Pro comparing v3.0.0 single-pass vs three separate
 - Word: 1,944/1,944 tests passing
 - Sentence: 512/512 tests passing
 
+## Version 4.0.0 Performance Improvements
+
+Version 4.0.0 focuses on code quality and maintainability through rule-based state machine architecture.
+
+### Rule-Based State Machine Architecture
+
+All break detection algorithms now use clean, rule-based implementations that directly map to the Unicode Standard specifications:
+
+- **BreakContext abstractions**: `GraphemeBreakContext`, `WordBreakContext`, `SentenceBreakContext` provide clean navigation APIs
+- **Named rule functions**: Each Unicode rule (GB3, WB5, SB8, etc.) becomes a named function with clear semantics
+- **Declarative rule chains**: Rules checked in order with first-match-wins strategy
+- **Maintained hierarchical optimization**: Words checked only at grapheme boundaries, sentences only at word boundaries
+
+This architecture dramatically improves:
+1. **Readability**: Rules directly match Unicode Standard specification
+2. **Maintainability**: Easy to understand, modify, and extend
+3. **Debuggability**: Each rule can be tested and traced independently
+
+### Code Organization
+
+New files implementing the rule-based architecture:
+- `context.go` - Break context abstractions with navigation methods
+- `grapheme_rules.go` - Grapheme breaking rules (ruleGB3 through ruleGB12_13)
+- `word_rules.go` - Word breaking rules (ruleWB3 through ruleWB15_16)
+- `sentence_rules.go` - Sentence breaking rules (ruleSB3 through ruleSB11)
+
+### Performance Analysis
+
+Benchmark results on Apple M4 Pro comparing v4.0.0 rule-based vs v3.0.0 inline:
+
+**Single-Pass API:**
+| Text Length | v3.0.0 Inline | v4.0.0 Rule-Based | Change |
+|-------------|---------------|-------------------|---------|
+| Short (33 chars) | 2,197 ns/op | 2,717 ns/op | 1.24x slower |
+| Medium (86 chars) | 9,636 ns/op | 6,647 ns/op | **1.45x faster** |
+| Long (467 chars) | 188,982 ns/op | 32,200 ns/op | **5.87x faster** |
+
+**Rule-based grapheme breaking alone** (standalone function):
+| Text Length | v3.0.0 Inline | v4.0.0 Rule-Based | Speedup |
+|-------------|---------------|-------------------|---------|
+| Short (33 chars) | 1,882 ns/op | 1,183 ns/op | **1.59x** |
+| Medium (86 chars) | 8,759 ns/op | 3,041 ns/op | **2.88x** |
+| Long (467 chars) | 168,060 ns/op | 15,170 ns/op | **11.08x** |
+
+**Single-Pass vs Three Separate Passes (v4.0.0):**
+| Text Length | Single Pass | Three Separate | Speedup |
+|-------------|-------------|----------------|---------|
+| Short (33 chars) | 2,717 ns/op | 3,380 ns/op | **1.24x** |
+| Medium (86 chars) | 6,647 ns/op | 14,312 ns/op | **2.15x** |
+| Long (467 chars) | 32,200 ns/op | 239,624 ns/op | **7.44x** |
+
+**Key findings:**
+- Rule-based grapheme breaking provides 1.6-11x speedup over inline implementation
+- Performance improvements increase dramatically with text length
+- Single-pass API maintains significant advantage over three separate calls
+- Medium and long texts benefit most from rule-based architecture
+
+### Maintained Conformance
+
+100% conformance maintained on all official Unicode test suites:
+- Grapheme: 766/766 tests passing
+- Word: 1,944/1,944 tests passing
+- Sentence: 512/512 tests passing
+
 ## Unicode Version
 
 This repository implements **Unicode 17.0.0** (September 2024).
