@@ -185,3 +185,127 @@ func BenchmarkGetSentenceBreakClass(b *testing.B) {
 		}
 	}
 }
+
+// Tests for single-pass FindAllBreaks
+
+func TestFindAllBreaks(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"Empty", ""},
+		{"Simple", "Hello, world!"},
+		{"Unicode", "Hello 世界! שלום"},
+		{"Emoji", "Hello 👨‍👩‍👧‍👦 world"},
+		{"Mixed", benchTextMedium},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Get results from single-pass
+			result := FindAllBreaks(tt.input)
+
+			// Get results from separate passes
+			expectedG := FindGraphemeBreaks(tt.input)
+			expectedW := FindWordBreaks(tt.input)
+			expectedS := FindSentenceBreaks(tt.input)
+
+			// Verify they match
+			if !equalSlices(result.Graphemes, expectedG) {
+				t.Errorf("Grapheme breaks mismatch\n  Got:      %v\n  Expected: %v", result.Graphemes, expectedG)
+			}
+			if !equalSlices(result.Words, expectedW) {
+				t.Errorf("Word breaks mismatch\n  Got:      %v\n  Expected: %v", result.Words, expectedW)
+			}
+			if !equalSlices(result.Sentences, expectedS) {
+				t.Errorf("Sentence breaks mismatch\n  Got:      %v\n  Expected: %v", result.Sentences, expectedS)
+			}
+
+			// Verify hierarchical property: Words ⊆ Graphemes, Sentences ⊆ Words
+			if !isSubset(result.Words, result.Graphemes) {
+				t.Errorf("Word breaks are not a subset of grapheme breaks")
+			}
+			if !isSubset(result.Sentences, result.Words) {
+				t.Errorf("Sentence breaks are not a subset of word breaks")
+			}
+		})
+	}
+}
+
+func equalSlices(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func isSubset(subset, superset []int) bool {
+	j := 0
+	for _, v := range subset {
+		for j < len(superset) && superset[j] < v {
+			j++
+		}
+		if j >= len(superset) || superset[j] != v {
+			return false
+		}
+		j++
+	}
+	return true
+}
+
+// Benchmarks for single-pass FindAllBreaks
+
+func BenchmarkFindAllBreaksShort(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FindAllBreaks(benchTextShort)
+	}
+}
+
+func BenchmarkFindAllBreaksMedium(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FindAllBreaks(benchTextMedium)
+	}
+}
+
+func BenchmarkFindAllBreaksLong(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FindAllBreaks(benchTextLong)
+	}
+}
+
+func BenchmarkFindAllBreaksUnicode(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FindAllBreaks(benchTextUnicode)
+	}
+}
+
+// Benchmark comparison: single-pass vs three separate calls
+
+func BenchmarkThreeSeparatePassesShort(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FindGraphemeBreaks(benchTextShort)
+		_ = FindWordBreaks(benchTextShort)
+		_ = FindSentenceBreaks(benchTextShort)
+	}
+}
+
+func BenchmarkThreeSeparatePassesMedium(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FindGraphemeBreaks(benchTextMedium)
+		_ = FindWordBreaks(benchTextMedium)
+		_ = FindSentenceBreaks(benchTextMedium)
+	}
+}
+
+func BenchmarkThreeSeparatePassesLong(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FindGraphemeBreaks(benchTextLong)
+		_ = FindWordBreaks(benchTextLong)
+		_ = FindSentenceBreaks(benchTextLong)
+	}
+}
