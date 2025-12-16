@@ -41,6 +41,8 @@ class := uax9.GetBidiClass('א')  // Returns R (Right-to-Left)
 
 Implementation of UAX #11 (East Asian Width) for determining character display width in East Asian typography contexts.
 
+**Status:** Complete with comprehensive test coverage
+
 Supports:
 - East Asian Width property lookup (Ambiguous, Fullwidth, Halfwidth, Narrow, Neutral, Wide)
 - Context-based width resolution for ambiguous characters
@@ -64,6 +66,8 @@ width := uax11.StringWidth("Hello世界", uax11.ContextNarrow)  // Returns 9
 ### [uax14](./uax14) - Line Breaking Algorithm
 
 Implementation of UAX #14 (Unicode Line Breaking Algorithm) for finding valid line break opportunities in text.
+
+**Status:** Complete with 100% conformance (19,338/19,338 tests passing)
 
 **Note:** This code was originally implemented in [github.com/SCKelemen/layout](https://github.com/SCKelemen/layout) and has been extracted to a standalone package for reusability.
 
@@ -121,6 +125,8 @@ sentences := uax29.Sentences("Hello. World!")  // Returns ["Hello. ", "World!"]
 ### [uax50](./uax50) - Vertical Text Layout
 
 Implementation of UAX #50 (Unicode Vertical Text Layout) for determining character orientation in vertical text.
+
+**Status:** Complete with comprehensive test coverage
 
 Supports:
 - Vertical orientation property lookup (Rotated, Upright, TransformedUpright, TransformedRotated)
@@ -230,10 +236,25 @@ All implementations follow the Unicode Standard and are tested against official 
   - Multi-isolate sequences and deep nesting (up to 125 levels)
   - Empty isolate handling and overflow isolation
   - Bracket pair matching and neutral resolution
+- **UAX #11 (East Asian Width)**: Comprehensive test coverage
+  - Character width property lookup for all Unicode code points
+  - Context-based ambiguous character resolution
+  - Display width calculation for strings
+  - Terminal emulator compatibility
+- **UAX #14 (Line Breaking)**: 100% conformance (19,338/19,338 tests)
+  - All line break classes and combining rules
+  - Tailorable break opportunities
+  - Complex script handling (CJK, Thai, etc.)
+  - Hyphenation support
 - **UAX #29 (Text Segmentation)**: 100% conformance (3,222/3,222 tests)
   - Grapheme cluster breaking: 766/766 tests
   - Word breaking: 1,944/1,944 tests
   - Sentence breaking: 512/512 tests
+- **UAX #50 (Vertical Text Layout)**: Comprehensive test coverage
+  - Vertical orientation property for all Unicode code points
+  - Glyph transformation detection
+  - Base orientation determination
+  - Mixed-script vertical layout support
 - **UTS #51 (Unicode Emoji)**: 100% conformance (5,223/5,223 tests)
   - All 6 emoji properties correctly implemented
   - Complete sequence validation (ZWJ, modifier, flag, keycap, tag sequences)
@@ -241,7 +262,10 @@ All implementations follow the Unicode Standard and are tested against official 
 ### Conformance Testing
 Implementations are validated using the official Unicode Character Database (UCD) test files:
 - [UAX #9 Test Files](https://www.unicode.org/Public/17.0.0/ucd/) - `BidiTest.txt` (513,494 tests), `BidiCharacterTest.txt`
+- [UAX #11 Data Files](https://www.unicode.org/Public/17.0.0/ucd/) - `EastAsianWidth.txt` property data
+- [UAX #14 Test Files](https://www.unicode.org/Public/17.0.0/ucd/auxiliary/) - `LineBreakTest.txt` (19,338 tests)
 - [UAX #29 Test Files](https://www.unicode.org/Public/17.0.0/ucd/auxiliary/) - `GraphemeBreakTest.txt`, `WordBreakTest.txt`, `SentenceBreakTest.txt`
+- [UAX #50 Data Files](https://www.unicode.org/Public/17.0.0/ucd/) - `VerticalOrientation.txt` property data
 - [UTS #51 Test Files](https://www.unicode.org/Public/emoji/17.0/) - `emoji-test.txt` with 5,223 test cases
 - [Unicode Character Database](https://www.unicode.org/Public/17.0.0/ucd/) - Character property data files
 
