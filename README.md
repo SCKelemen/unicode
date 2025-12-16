@@ -120,6 +120,18 @@ words := uax29.Words("Hello, world!")  // Returns ["Hello", ",", " ", "world", "
 
 // Sentences
 sentences := uax29.Sentences("Hello. World!")  // Returns ["Hello. ", "World!"]
+
+// Single-pass API - get all three break types at once
+breaks := uax29.FindAllBreaks("Hello, world!")
+for _, pos := range breaks.Graphemes {
+    // Process grapheme boundaries
+}
+for _, pos := range breaks.Words {
+    // Process word boundaries
+}
+for _, pos := range breaks.Sentences {
+    // Process sentence boundaries
+}
 ```
 
 ### [uax50](./uax50) - Vertical Text Layout
@@ -204,6 +216,44 @@ These implementations focus on practical text layout and rendering needs:
 - Well-tested
 - Layout-engine agnostic
 - Full conformance with Unicode standards
+
+## Version 2.0.0 Performance Improvements
+
+Version 2.0.0 focuses on performance optimization while maintaining 100% conformance with Unicode standards.
+
+### Table-Driven Binary Search
+
+All packages now use **table-driven O(log n) binary search** for character classification, replacing sequential O(n) checks:
+
+- **UAX #9**: Bidi class lookup optimized with 3,060 precomputed ranges from `DerivedBidiClass.txt`
+- **UAX #29**: Unified packed data structure with 4,673 ranges encoding all three break types (grapheme, word, sentence) in 16-bit format
+
+**Performance**: Character classification now runs at ~60-100 ns/op with 0 allocations on Apple M4 Pro.
+
+### Generated Unicode Data
+
+All Unicode property data is now generated directly from official Unicode 17.0.0 data files:
+- Download from unicode.org during build
+- Parse property files (`DerivedBidiClass.txt`, `GraphemeBreakProperty.txt`, etc.)
+- Generate optimized Go code with binary search tables
+- Ensures correctness and synchronization with Unicode standard
+
+### Single-Pass API
+
+UAX #29 provides a new `FindAllBreaks()` API that computes grapheme, word, and sentence boundaries in a single traversal:
+
+```go
+// Before: Three separate passes
+graphemes := uax29.FindGraphemeBreaks(text)
+words := uax29.FindWordBreaks(text)
+sentences := uax29.FindSentenceBreaks(text)
+
+// After: Single pass with shared classification
+breaks := uax29.FindAllBreaks(text)
+// Use breaks.Graphemes, breaks.Words, breaks.Sentences
+```
+
+This provides a convenient API for applications that need multiple break types, with framework in place for future hierarchical optimization.
 
 ## Unicode Version
 
