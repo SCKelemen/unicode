@@ -3,27 +3,9 @@ package uax29
 // SentenceBreakClass type and constants are defined in classes.go
 
 // getSentenceBreakClass returns the sentence break class for a rune.
-// This function uses binary search on the generated sentence break property data.
+// This function uses binary search on the unified packed break property data.
 func getSentenceBreakClass(r rune) SentenceBreakClass {
-	// Binary search on the generated data table
-	left, right := 0, len(sentenceBreakData)-1
-
-	for left <= right {
-		mid := (left + right) / 2
-		entry := sentenceBreakData[mid]
-
-		if r < entry.start {
-			right = mid - 1
-		} else if r > entry.end {
-			left = mid + 1
-		} else {
-			// Found the range containing r
-			return entry.class
-		}
-	}
-
-	// Default: Other
-	return SBOther
+	return classifyRune(r).Sentence()
 }
 
 // FindSentenceBreaks returns the byte positions where sentence breaks occur in the given text.

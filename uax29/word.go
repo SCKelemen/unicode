@@ -3,27 +3,9 @@ package uax29
 // WordBreakClass type and constants are defined in classes.go
 
 // getWordBreakClass returns the word break class for a rune.
-// This function uses binary search on the generated word break property data.
+// This function uses binary search on the unified packed break property data.
 func getWordBreakClass(r rune) WordBreakClass {
-	// Binary search on the generated data table
-	left, right := 0, len(wordBreakData)-1
-
-	for left <= right {
-		mid := (left + right) / 2
-		entry := wordBreakData[mid]
-
-		if r < entry.start {
-			right = mid - 1
-		} else if r > entry.end {
-			left = mid + 1
-		} else {
-			// Found the range containing r
-			return entry.class
-		}
-	}
-
-	// Default: Other
-	return WBOther
+	return classifyRune(r).Word()
 }
 
 // FindWordBreaks returns the byte positions where word breaks occur in the given text.

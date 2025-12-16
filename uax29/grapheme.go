@@ -7,27 +7,9 @@ import (
 // GraphemeBreakClass type and constants are defined in classes.go
 
 // getGraphemeBreakClass returns the grapheme cluster break class for a rune.
-// This function uses binary search on the generated grapheme break property data.
+// This function uses binary search on the unified packed break property data.
 func getGraphemeBreakClass(r rune) GraphemeBreakClass {
-	// Binary search on the generated data table
-	left, right := 0, len(graphemeBreakData)-1
-
-	for left <= right {
-		mid := (left + right) / 2
-		entry := graphemeBreakData[mid]
-
-		if r < entry.start {
-			right = mid - 1
-		} else if r > entry.end {
-			left = mid + 1
-		} else {
-			// Found the range containing r
-			return entry.class
-		}
-	}
-
-	// Default: Other
-	return GBOther
+	return classifyRune(r).Grapheme()
 }
 
 // isExtendedPictographic checks if a rune is an extended pictographic character.
