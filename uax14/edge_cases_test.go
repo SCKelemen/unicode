@@ -144,7 +144,7 @@ func TestEdgeCases_Hyphens(t *testing.T) {
 			name:     "em dash",
 			text:     "hello—world", // U+2014 EM DASH
 			hyphens:  HyphensAuto,
-			expected: []int{0, 8, 13}, // Should break like hyphen
+			expected: []int{0, 5, 8, 13}, // UAX#14: break before and after B2 (em dash)
 		},
 		{
 			name:     "en dash",
