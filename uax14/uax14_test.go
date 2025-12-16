@@ -123,7 +123,7 @@ func TestGetBreakClass(t *testing.T) {
 		{"question", '?', ClassEX},
 		{"comma", ',', ClassIS},
 		{"period", '.', ClassIS},
-		{"ideographic", '世', ClassID},
+		{"ideographic", '世', ClassID_EA}, // '世' has East Asian Width, so returns EA variant
 		{"hebrew", 'א', ClassHL},
 	}
 

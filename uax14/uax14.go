@@ -4390,22 +4390,30 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 		// LB21: Special handling for HY (hyphen-minus)
 		// HY generally allows breaks after it, with specific exceptions
 		// Patterns: AL × HY ÷ AL, CP × HY ÷, CL × HY ÷, HL × HY ÷ HL
+		// Respect hyphens mode: only break in HyphensAuto mode
 		if prevClass == ClassHY && i >= 2 {
 			// Check what comes before the HY
 			prevPrevRune := runes[i-2]
 			prevPrevClass := getBreakClass(prevPrevRune)
 			shouldBreak := false
 
-			if isClassOrVariant(prevPrevClass, ClassCP) || isClassOrVariant(prevPrevClass, ClassCL) {
-				// CP × HY ÷, CL × HY ÷ - allow break after HY
-				shouldBreak = true
-			} else if prevPrevClass == ClassHL && currClass == ClassHL {
-				// HL × HY ÷ HL (Hebrew letter, hyphen, Hebrew letter) - allow break after HY
-				shouldBreak = true
-			} else if isClassOrVariant(prevPrevClass, ClassAL) && isClassOrVariant(currClass, ClassAL) {
-				// AL × HY ÷ AL - regular hyphenated words like "Excusez-moi"
-				shouldBreak = true
-			} else if prevPrevClass == ClassHY && isClassOrVariant(currClass, ClassAL) {
+			// Only allow breaks at hard hyphens in HyphensAuto mode
+			// HyphensManual: only soft hyphens (U+00AD) create breaks
+			// HyphensNone: no breaks at any hyphens
+			isSoftHyphen := prevPrevRune == '\u00AD' || runes[i-1] == '\u00AD'
+			canBreakAtHyphen := (hyphens == HyphensAuto) || (isSoftHyphen && (hyphens == HyphensManual || hyphens == HyphensAuto))
+
+			if canBreakAtHyphen {
+				if isClassOrVariant(prevPrevClass, ClassCP) || isClassOrVariant(prevPrevClass, ClassCL) {
+					// CP × HY ÷, CL × HY ÷ - allow break after HY
+					shouldBreak = true
+				} else if prevPrevClass == ClassHL && currClass == ClassHL {
+					// HL × HY ÷ HL (Hebrew letter, hyphen, Hebrew letter) - allow break after HY
+					shouldBreak = true
+				} else if isClassOrVariant(prevPrevClass, ClassAL) && isClassOrVariant(currClass, ClassAL) {
+					// AL × HY ÷ AL - regular hyphenated words like "Excusez-moi"
+					shouldBreak = true
+				} else if prevPrevClass == ClassHY && isClassOrVariant(currClass, ClassAL) {
 				// HY × HY ÷ AL - check if this follows CP/CL in the context
 				// Pattern: CP/CL × ... × AL × HY × HY ÷ AL (like "(http://)xn--a" or "{http://}xn--a")
 				checkIdx := i - 3
@@ -4422,6 +4430,7 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 						shouldBreak = true
 					}
 					break
+				}
 				}
 			}
 
@@ -5260,9 +5269,9 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 					// BA/B2 × CM - don't break before combining mark
 					// BA/B2 × ZW - don't break before zero-width space (LB8)
 				} else {
-					// HY: Respect hyphens setting for soft hyphens only
-					// Hard hyphens (U+002D) follow pair table
+					// HY: Respect hyphens setting for both soft and hard hyphens
 					// Soft hyphens (U+00AD) are controlled by hyphens property
+					// Hard hyphens (U+002D) also respect hyphens property per CSS Text Level 3
 					if isSoftHyphen {
 						// Soft hyphen: controlled by hyphens property
 						if hyphens == HyphensManual || hyphens == HyphensAuto {
@@ -5271,10 +5280,15 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 						}
 						// HyphensNone: don't break at soft hyphen
 					} else {
-						// Hard hyphen: follow pair table (BreakDirect = break)
-						if currClass != ClassSP && currClass != ClassZW && currClass != ClassCM {
-							bytePos := len(string(runes[:i]))
-							breakPoints = append(breakPoints, bytePos)
+						// Hard hyphen: respect hyphens mode
+						// HyphensAuto: allow breaks at hard hyphens
+						// HyphensManual: don't break at hard hyphens (only soft hyphens)
+						// HyphensNone: don't break at any hyphens
+						if hyphens == HyphensAuto {
+							if currClass != ClassSP && currClass != ClassZW && currClass != ClassCM {
+								bytePos := len(string(runes[:i]))
+								breakPoints = append(breakPoints, bytePos)
+							}
 						}
 					}
 				}
@@ -5335,11 +5349,17 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 				// Default: BreakDirect for all other combinations
 				// The pair table explicitly says to break here
 				// Respect special rules: don't break before SP, ZW, CM, WJ
+				// Also don't break before B2 (em dash) to match hyphen behavior (AL × HY)
 				// Note: GL removed - if pair table says BreakDirect for X × GL, trust it (e.g. BA × GL)
 				if currClass != ClassSP && currClass != ClassZW && currClass != ClassCM &&
 					currClass != ClassWJ {
-					bytePos := len(string(runes[:i]))
-					breakPoints = append(breakPoints, bytePos)
+					// Don't break before B2 when preceded by AL (match hyphen behavior)
+					if currClass == ClassB2 && isClassOrVariant(prevClass, ClassAL) {
+						// Skip this break to match hyphen behavior (AL × HY)
+					} else {
+						bytePos := len(string(runes[:i]))
+						breakPoints = append(breakPoints, bytePos)
+					}
 				}
 			}
 		}
