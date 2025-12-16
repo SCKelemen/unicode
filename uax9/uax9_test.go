@@ -75,7 +75,7 @@ func TestGetBidiClass(t *testing.T) {
 		{'0', ClassEN},
 		{'9', ClassEN},
 		{' ', ClassWS},
-		{'\t', ClassWS},
+		{'\t', ClassS},  // Tab is Segment Separator, not Whitespace
 		{'\n', ClassB},
 		{'+', ClassES},
 		{'-', ClassES},

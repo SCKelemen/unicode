@@ -61,10 +61,6 @@
 // averaging ~0.78 microseconds per test case.
 package uax9
 
-import (
-	"unicode"
-)
-
 // Direction represents the base text direction.
 type Direction int
 
@@ -157,112 +153,7 @@ func (bc BidiClass) String() string {
 //
 // Reference: https://www.unicode.org/reports/tr9/#Bidirectional_Character_Types
 func GetBidiClass(r rune) BidiClass {
-	// Explicit formatting characters
-	switch r {
-	case 0x202A:
-		return ClassLRE
-	case 0x202B:
-		return ClassRLE
-	case 0x202C:
-		return ClassPDF
-	case 0x202D:
-		return ClassLRO
-	case 0x202E:
-		return ClassRLO
-	case 0x2066:
-		return ClassLRI
-	case 0x2067:
-		return ClassRLI
-	case 0x2068:
-		return ClassFSI
-	case 0x2069:
-		return ClassPDI
-	}
-
-	// Paragraph separators
-	switch r {
-	case 0x000A, 0x000D, 0x001C, 0x001D, 0x001E, 0x0085, 0x2029:
-		return ClassB
-	}
-
-	// Segment separator
-	if r == 0x001F {
-		return ClassS
-	}
-
-	// Whitespace
-	if r == ' ' || r == '\t' || r == 0x000B || r == 0x000C ||
-		r == 0x1680 || (r >= 0x2000 && r <= 0x200A) ||
-		r == 0x2028 || r == 0x205F || r == 0x3000 {
-		return ClassWS
-	}
-
-	// Nonspacing marks
-	if unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Me, r) {
-		return ClassNSM
-	}
-
-	// Format characters (BN)
-	if unicode.Is(unicode.Cf, r) && r != 0x200C && r != 0x200D {
-		return ClassBN
-	}
-	if r == 0x200B || r == 0xFEFF {
-		return ClassBN
-	}
-
-	// Arabic letters
-	if isArabicLetter(r) {
-		return ClassAL
-	}
-
-	// Right-to-left characters
-	if unicode.Is(unicode.Hebrew, r) {
-		return ClassR
-	}
-
-	// European numbers
-	if r >= '0' && r <= '9' {
-		return ClassEN
-	}
-
-	// European number separators
-	if r == '+' || r == '-' {
-		return ClassES
-	}
-
-	// European number terminators
-	if r == '#' || r == '$' || r == '%' || r == 0x00A2 || r == 0x00A3 ||
-		r == 0x00A5 || r == 0x00B0 || r == 0x00B1 {
-		return ClassET
-	}
-
-	// Arabic numbers (Extended Arabic-Indic)
-	if (r >= 0x0660 && r <= 0x0669) || (r >= 0x066B && r <= 0x066C) {
-		return ClassAN
-	}
-
-	// Common number separators
-	if r == ',' || r == '.' || r == ':' || r == 0x00A0 {
-		return ClassCS
-	}
-
-	// Left-to-right (most Latin, etc.)
-	if unicode.Is(unicode.Latin, r) || unicode.Is(unicode.Greek, r) ||
-		unicode.Is(unicode.Cyrillic, r) {
-		return ClassL
-	}
-
-	// Default to Other Neutral
-	return ClassON
-}
-
-// isArabicLetter checks if a rune is an Arabic letter.
-func isArabicLetter(r rune) bool {
-	return (r >= 0x0600 && r <= 0x06FF) || // Arabic
-		(r >= 0x0750 && r <= 0x077F) || // Arabic Supplement
-		(r >= 0x08A0 && r <= 0x08FF) || // Arabic Extended-A
-		(r >= 0xFB50 && r <= 0xFDFF) || // Arabic Presentation Forms-A
-		(r >= 0xFE70 && r <= 0xFEFF)    // Arabic Presentation Forms-B
+	return getBidiClassFromData(r)
 }
 
 // ComputeLevels computes the bidirectional embedding levels for a sequence of
