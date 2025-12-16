@@ -4389,23 +4389,21 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 
 		// LB21: Special handling for HY (hyphen-minus)
 		// HY generally allows breaks after it, with specific exceptions
-		// Patterns: CP × HY ÷, CL × HY ÷, HL × HY ÷ HL
-		// Note: AL × HY ÷ AL is handled separately in prevClass == ClassHY section with hyphens mode
+		// Patterns: AL × HY ÷ AL, CP × HY ÷, CL × HY ÷, HL × HY ÷ HL
 		if prevClass == ClassHY && i >= 2 {
 			// Check what comes before the HY
 			prevPrevRune := runes[i-2]
 			prevPrevClass := getBreakClass(prevPrevRune)
 			shouldBreak := false
 
-			// Check for soft hyphen
-			isSoftHyphen := prevPrevRune == '\u00AD' || runes[i-1] == '\u00AD'
-
-			// These patterns always apply regardless of hyphens mode (UAX#14 rules)
 			if isClassOrVariant(prevPrevClass, ClassCP) || isClassOrVariant(prevPrevClass, ClassCL) {
 				// CP × HY ÷, CL × HY ÷ - allow break after HY
 				shouldBreak = true
 			} else if prevPrevClass == ClassHL && currClass == ClassHL {
 				// HL × HY ÷ HL (Hebrew letter, hyphen, Hebrew letter) - allow break after HY
+				shouldBreak = true
+			} else if isClassOrVariant(prevPrevClass, ClassAL) && isClassOrVariant(currClass, ClassAL) {
+				// AL × HY ÷ AL - regular hyphenated words like "Excusez-moi"
 				shouldBreak = true
 			} else if prevPrevClass == ClassHY && isClassOrVariant(currClass, ClassAL) {
 				// HY × HY ÷ AL - check if this follows CP/CL in the context
@@ -4424,13 +4422,6 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 						shouldBreak = true
 					}
 					break
-				}
-			} else if isClassOrVariant(prevPrevClass, ClassAL) && isClassOrVariant(currClass, ClassAL) {
-				// AL × HY ÷ AL - regular hyphenated words like "Excusez-moi"
-				// Respect hyphens mode for this pattern only
-				canBreakAtHyphen := (hyphens == HyphensAuto) || (isSoftHyphen && (hyphens == HyphensManual || hyphens == HyphensAuto))
-				if canBreakAtHyphen {
-					shouldBreak = true
 				}
 			}
 
@@ -5269,9 +5260,9 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 					// BA/B2 × CM - don't break before combining mark
 					// BA/B2 × ZW - don't break before zero-width space (LB8)
 				} else {
-					// HY: Respect hyphens setting for soft hyphens
-					// For hard hyphens, respect hyphens mode only for word-breaking patterns (AL × HY ÷ AL)
-					// Other patterns follow pair table regardless of hyphens mode
+					// HY: Respect hyphens setting for soft hyphens only
+					// Hard hyphens (U+002D) follow pair table
+					// Soft hyphens (U+00AD) are controlled by hyphens property
 					if isSoftHyphen {
 						// Soft hyphen: controlled by hyphens property
 						if hyphens == HyphensManual || hyphens == HyphensAuto {
@@ -5280,41 +5271,10 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 						}
 						// HyphensNone: don't break at soft hyphen
 					} else {
-						// Hard hyphen: check if this is a word-breaking pattern
-						// Look back to see if hyphen is preceded by AL
-						isWordBreakPattern := false
-						if i >= 2 {
-							prevPrevClass := getBreakClass(runes[i-2])
-							// Skip CM to find the actual preceding class
-							checkIdx := i - 2
-							for checkIdx >= 0 && (isClassOrVariant(prevPrevClass, ClassCM) || prevPrevClass == ClassZWJ) {
-								checkIdx--
-								if checkIdx >= 0 {
-									prevPrevClass = getBreakClass(runes[checkIdx])
-								}
-							}
-							// AL × HY ÷ AL is the word-breaking pattern
-							if isClassOrVariant(prevPrevClass, ClassAL) && isClassOrVariant(currClass, ClassAL) {
-								isWordBreakPattern = true
-							}
-						}
-
-						// Only respect hyphens mode for word-breaking pattern
-						// For other patterns (HY ÷ B2, HY ÷ BB, etc.), always follow pair table
-						if isWordBreakPattern {
-							// Word-breaking: respect hyphens mode
-							if hyphens == HyphensAuto {
-								if currClass != ClassSP && currClass != ClassZW && currClass != ClassCM {
-									bytePos := len(string(runes[:i]))
-									breakPoints = append(breakPoints, bytePos)
-								}
-							}
-						} else {
-							// Non-word-breaking: always follow pair table
-							if currClass != ClassSP && currClass != ClassZW && currClass != ClassCM {
-								bytePos := len(string(runes[:i]))
-								breakPoints = append(breakPoints, bytePos)
-							}
+						// Hard hyphen: follow pair table (BreakDirect = break)
+						if currClass != ClassSP && currClass != ClassZW && currClass != ClassCM {
+							bytePos := len(string(runes[:i]))
+							breakPoints = append(breakPoints, bytePos)
 						}
 					}
 				}

@@ -58,13 +58,13 @@ func TestFindLineBreakOpportunities(t *testing.T) {
 			name:     "with hard hyphen - manual mode",
 			text:     "twenty-one",
 			hyphens:  HyphensManual,
-			expected: []int{0, 10},
+			expected: []int{0, 7, 10}, // UAX#14: hyphen-minus (U+002D) is class BA, allows breaks
 		},
 		{
 			name:     "with hard hyphen - auto mode",
 			text:     "twenty-one",
 			hyphens:  HyphensAuto,
-			expected: []int{0, 7, 10},
+			expected: []int{0, 7, 10}, // UAX#14: hyphen-minus (U+002D) is class BA, allows breaks
 		},
 		{
 			name:     "CJK text",
@@ -123,7 +123,7 @@ func TestGetBreakClass(t *testing.T) {
 		{"question", '?', ClassEX},
 		{"comma", ',', ClassIS},
 		{"period", '.', ClassIS},
-		{"ideographic", '世', ClassID_EA}, // '世' has East Asian Width, so returns EA variant
+		{"ideographic", '世', ClassID_EA}, // '世' has East Asian Width, returns EA variant
 		{"hebrew", 'א', ClassHL},
 	}
 

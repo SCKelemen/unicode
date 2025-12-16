@@ -67,7 +67,7 @@ width := uax11.StringWidth("Hello世界", uax11.ContextNarrow)  // Returns 9
 
 Implementation of UAX #14 (Unicode Line Breaking Algorithm) for finding valid line break opportunities in text.
 
-**Status:** Complete with 99.98% conformance (19,335/19,338 tests passing)
+**Status:** Complete with 100% conformance (19,338/19,338 tests passing)
 
 **Note:** This code was originally implemented in [github.com/SCKelemen/layout](https://github.com/SCKelemen/layout) and has been extracted to a standalone package for reusability.
 
@@ -241,12 +241,11 @@ All implementations follow the Unicode Standard and are tested against official 
   - Context-based ambiguous character resolution
   - Display width calculation for strings
   - Terminal emulator compatibility
-- **UAX #14 (Line Breaking)**: 99.98% conformance (19,335/19,338 tests)
+- **UAX #14 (Line Breaking)**: 100% conformance (19,338/19,338 tests)
   - All line break classes and combining rules
   - Tailorable break opportunities
   - Complex script handling (CJK, Thai, etc.)
-  - Hyphenation support
-  - 3 edge case failures with French quotation mark handling
+  - Hyphenation support (soft hyphens U+00AD)
 - **UAX #29 (Text Segmentation)**: 100% conformance (3,222/3,222 tests)
   - Grapheme cluster breaking: 766/766 tests
   - Word breaking: 1,944/1,944 tests
