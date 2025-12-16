@@ -265,13 +265,6 @@ func isArabicLetter(r rune) bool {
 		(r >= 0xFE70 && r <= 0xFEFF)    // Arabic Presentation Forms-B
 }
 
-// levelRun represents a run of characters with the same embedding level.
-type levelRun struct {
-	start int
-	end   int
-	level int
-}
-
 // ComputeLevels computes the bidirectional embedding levels for a sequence of
 // characters according to UAX #9.
 //
@@ -680,7 +673,7 @@ func processExplicitLevels(classes []BidiClass, levels []int, paraLevel int) {
 		case ClassRLE, ClassLRE, ClassRLO, ClassLRO:
 			// X2-X5: Explicit embeddings and overrides
 			currentLevel := stack[len(stack)-1].level
-			newLevel := currentLevel
+			var newLevel int
 			override := BidiClass(-1)
 
 			if class == ClassRLE || class == ClassRLO {
@@ -722,7 +715,7 @@ func processExplicitLevels(classes []BidiClass, levels []int, paraLevel int) {
 		case ClassLRI, ClassRLI, ClassFSI:
 			// X5a-X5c: Isolate initiators
 			currentLevel := stack[len(stack)-1].level
-			newLevel := currentLevel
+			var newLevel int
 			isolateClass := class
 
 			// FSI: determine direction from following strong character
