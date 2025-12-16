@@ -1,0 +1,187 @@
+package uax29
+
+import (
+	"testing"
+)
+
+// Test text samples for benchmarking
+const (
+	benchTextShort  = "Hello, world! How are you today?"
+	benchTextMedium = "The quick brown fox jumps over the lazy dog. This is a test sentence. How wonderful!"
+	benchTextLong   = `Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.`
+	benchTextUnicode = "Hello 世界! Привет мир! שלום עולם! 👨‍👩‍👧‍👦🇺🇸"
+)
+
+// Benchmarks for Grapheme breaks
+
+func BenchmarkGraphemesShort(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = Graphemes(benchTextShort)
+	}
+}
+
+func BenchmarkGraphemesMedium(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = Graphemes(benchTextMedium)
+	}
+}
+
+func BenchmarkGraphemesLong(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = Graphemes(benchTextLong)
+	}
+}
+
+func BenchmarkGraphemesUnicode(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = Graphemes(benchTextUnicode)
+	}
+}
+
+func BenchmarkFindGraphemeBreaksShort(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FindGraphemeBreaks(benchTextShort)
+	}
+}
+
+func BenchmarkFindGraphemeBreaksMedium(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FindGraphemeBreaks(benchTextMedium)
+	}
+}
+
+func BenchmarkFindGraphemeBreaksLong(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FindGraphemeBreaks(benchTextLong)
+	}
+}
+
+// Benchmarks for Word breaks
+
+func BenchmarkWordsShort(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = Words(benchTextShort)
+	}
+}
+
+func BenchmarkWordsMedium(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = Words(benchTextMedium)
+	}
+}
+
+func BenchmarkWordsLong(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = Words(benchTextLong)
+	}
+}
+
+func BenchmarkWordsUnicode(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = Words(benchTextUnicode)
+	}
+}
+
+func BenchmarkFindWordBreaksShort(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FindWordBreaks(benchTextShort)
+	}
+}
+
+func BenchmarkFindWordBreaksMedium(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FindWordBreaks(benchTextMedium)
+	}
+}
+
+func BenchmarkFindWordBreaksLong(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FindWordBreaks(benchTextLong)
+	}
+}
+
+// Benchmarks for Sentence breaks
+
+func BenchmarkSentencesShort(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = Sentences(benchTextShort)
+	}
+}
+
+func BenchmarkSentencesMedium(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = Sentences(benchTextMedium)
+	}
+}
+
+func BenchmarkSentencesLong(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = Sentences(benchTextLong)
+	}
+}
+
+func BenchmarkSentencesUnicode(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = Sentences(benchTextUnicode)
+	}
+}
+
+func BenchmarkFindSentenceBreaksShort(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FindSentenceBreaks(benchTextShort)
+	}
+}
+
+func BenchmarkFindSentenceBreaksMedium(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FindSentenceBreaks(benchTextMedium)
+	}
+}
+
+func BenchmarkFindSentenceBreaksLong(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FindSentenceBreaks(benchTextLong)
+	}
+}
+
+// Benchmark classification functions directly
+
+func BenchmarkClassifyRune(b *testing.B) {
+	runes := []rune{'a', '世', 'א', '👨', '\n', '.', ' '}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for _, r := range runes {
+			_ = classifyRune(r)
+		}
+	}
+}
+
+func BenchmarkGetGraphemeBreakClass(b *testing.B) {
+	runes := []rune{'a', '世', 'א', '👨', '\n', '.', ' '}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for _, r := range runes {
+			_ = getGraphemeBreakClass(r)
+		}
+	}
+}
+
+func BenchmarkGetWordBreakClass(b *testing.B) {
+	runes := []rune{'a', '世', 'א', '👨', '\n', '.', ' '}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for _, r := range runes {
+			_ = getWordBreakClass(r)
+		}
+	}
+}
+
+func BenchmarkGetSentenceBreakClass(b *testing.B) {
+	runes := []rune{'a', '世', 'א', '👨', '\n', '.', ' '}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for _, r := range runes {
+			_ = getSentenceBreakClass(r)
+		}
+	}
+}
