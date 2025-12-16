@@ -255,6 +255,42 @@ breaks := uax29.FindAllBreaks(text)
 
 This provides a convenient API for applications that need multiple break types, with framework in place for future hierarchical optimization.
 
+## Version 3.0.0 Performance Improvements
+
+Version 3.0.0 focuses on hierarchical optimization of the single-pass API introduced in v2.0.0.
+
+### Hierarchical Break Detection
+
+The `FindAllBreaks()` API now implements true hierarchical checking, leveraging the natural subset relationships between break types:
+
+- **Words ⊆ Graphemes**: Word breaks only checked at grapheme cluster boundaries
+- **Sentences ⊆ Words**: Sentence breaks only checked at word boundaries
+
+This eliminates redundant checks and significantly improves performance for applications needing multiple break types.
+
+### Performance Improvements
+
+Benchmark results on Apple M4 Pro comparing v3.0.0 single-pass vs three separate function calls:
+
+| Text Length | v2.0.0 Three Passes | v3.0.0 Single Pass | Speedup |
+|-------------|--------------------|--------------------|---------|
+| Short (33 chars) | 3,457 ns/op | 2,197 ns/op | **1.57x** |
+| Medium (86 chars) | 16,191 ns/op | 9,636 ns/op | **1.68x** |
+| Long (467 chars) | 423,491 ns/op | 188,982 ns/op | **2.24x** |
+
+**Key benefits:**
+- Speedup increases with text length (hierarchical pruning more effective on longer text)
+- Single UTF-8 decode and classification pass
+- Pre-classified data reused across all three break types
+- No additional allocations compared to v2.0.0
+
+### Maintained Conformance
+
+100% conformance maintained on all official Unicode test suites:
+- Grapheme: 766/766 tests passing
+- Word: 1,944/1,944 tests passing
+- Sentence: 512/512 tests passing
+
 ## Unicode Version
 
 This repository implements **Unicode 17.0.0** (September 2024).
