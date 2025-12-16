@@ -157,7 +157,7 @@ func BenchmarkEmojiTestFileParsing(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for _, line := range lines {
-			_ = parseEmojiTestLine(line) // Benchmark, ignore errors
+			_, _ = parseEmojiTestLine(line) // Benchmark, ignore errors
 		}
 	}
 }
