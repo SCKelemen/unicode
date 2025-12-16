@@ -74,6 +74,7 @@ func parseUnicodeTestLine(line string) (text string, expectedBreaks []int, err e
 func TestOfficialUnicodeVectors(t *testing.T) {
 	// Try to find the test file in various locations
 	testFiles := []string{
+		"LineBreakTest.txt",
 		"/tmp/LineBreakTest.txt",
 		"testdata/LineBreakTest.txt",
 		"../testdata/LineBreakTest.txt",
