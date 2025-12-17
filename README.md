@@ -796,4 +796,6 @@ The implementations follow the conformance model described in [UTR #33: Unicode 
 
 ## License
 
-MIT
+🐻 BearWare 1.0 🐻
+
+MIT License with bear emojis. See [LICENSE](LICENSE) file for details.
