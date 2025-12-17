@@ -608,6 +608,81 @@ Benchmark results on Apple M4 Pro comparing v4.0.0 rule-based vs v3.0.0 inline:
 - Word: 1,944/1,944 tests passing
 - Sentence: 512/512 tests passing
 
+## Version 5.0.0 Improvements
+
+Version 5.0.0 extends the rule-based state machine architecture from UAX #29 to UAX #14 (Line Breaking Algorithm), achieving 100% conformance and dramatically improved maintainability.
+
+### Rule-Based Line Breaking Architecture
+
+UAX #14 now uses a clean, rule-based implementation that directly maps to the Unicode Standard specification:
+
+- **LineBreakContext abstraction**: Clean navigation API with helper methods (`SkipBackward`, `FindForward`, etc.)
+- **Named rule functions**: Each Unicode rule (LB4, LB5, LB8, LB21, etc.) becomes a named function
+- **Declarative rule chains**: Rules checked in order with first-match-wins strategy
+- **Pair table fallback**: Common cases handled by efficient 2,064-entry lookup table
+
+### Code Organization
+
+New architecture improves code organization:
+- **Original**: 1,112-line monolithic function with complex inline conditionals
+- **Rule-based**: Isolated, independently testable rule functions with clear documentation
+- **Complex rules decomposed**: LB21 (hyphen handling) and LB19 (quotation marks) broken into 7+ focused sub-rules
+
+Key files:
+- `context.go` - LineBreakContext abstraction with navigation methods
+- `linebreak_rules.go` - Rule-based implementation (59 rule functions, 1,786 lines)
+- Original monolithic implementation retained for comparison and fallback
+
+### 100% Conformance Achievement
+
+The rule-based implementation passes all official Unicode conformance tests:
+
+**UAX #14 (Line Breaking)**: 19,338/19,338 tests passing (100.0%)
+
+Key fixes for 100% conformance:
+- **French guillemet separators**: `»word« pattern` (U+00AB/U+00BB) requiring special break handling
+- **German quotes**: `„..."` and `‚...'` patterns where ClassQU_Pi acts as closing quote
+- **Hebrew MAQAF**: HL × HH ÷ HL pattern for U+05BE hyphen
+- **Regional indicators with combining marks**: RI × CM × RI sequences
+- **Extended pictographic × emoji modifier**: Reserved emoji ranges (U+1F000-U+1FFFD)
+- **Rule ordering**: Guillemet and German patterns must process before default quotation rules
+
+### Performance Analysis
+
+Benchmark results on Apple M4 Pro comparing rule-based vs original:
+
+| Text Length | Original | Rule-Based | Change |
+|-------------|----------|------------|---------|
+| Short (10 chars) | 494 ns/op | 1,360 ns/op | 2.75x slower |
+| Medium (64 chars) | 3,934 ns/op | 9,374 ns/op | 2.38x slower |
+| Long (45 chars) | 2,138 ns/op | 5,209 ns/op | 2.44x slower |
+
+**Trade-off analysis:**
+- Rule-based implementation is 2-3x slower due to abstraction overhead
+- Maintainability benefits are significant:
+  - Isolated, testable rules directly mapping to spec
+  - Clear documentation with spec links for each rule
+  - Easy to add new rules without understanding entire state machine
+  - Complex rules (LB21, LB19) broken into manageable sub-functions
+- Performance acceptable for text layout applications (thousands of characters per millisecond)
+
+### Benefits for Unicode Maintainability
+
+The rule-based architecture provides critical benefits:
+
+1. **Direct spec mapping**: Rule functions named after Unicode spec rules (ruleLB4, ruleLB21, etc.)
+2. **Independent testing**: Each rule can be tested and traced independently
+3. **Clear debugging**: Rule execution can be logged to understand break decisions
+4. **Easy updates**: New Unicode versions can add rules without refactoring
+5. **Reduced complexity**: No massive conditional chains or inline state tracking
+
+This matches the successful pattern from UAX #29 v4.0.0, providing consistency across the codebase.
+
+### Maintained Conformance
+
+100% conformance maintained on all official Unicode test suites:
+- Line Breaking: 19,338/19,338 tests passing
+
 ## Unicode Version
 
 This repository implements **Unicode 17.0.0** (September 2024).
