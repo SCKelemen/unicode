@@ -89,7 +89,7 @@ breaks := uax14.FindLineBreakOpportunities(text, uax14.HyphensManual)
 
 Implementation of UAX #24 (Unicode Script Property) for identifying the writing system (script) to which a character belongs.
 
-**Status:** Complete with comprehensive test coverage
+**Status:** Complete with 100% conformance (159,866/159,866 tests passing)
 
 Supports:
 - Script property lookup for all Unicode 17.0.0 characters
@@ -175,7 +175,7 @@ for _, pos := range breaks.Sentences {
 
 Implementation of UAX #31 (Unicode Identifier and Pattern Syntax) for determining valid identifier characters in programming languages and pattern-based systems.
 
-**Status:** Complete with comprehensive test coverage
+**Status:** Complete with 100% conformance (297,981/297,981 tests passing)
 
 Supports:
 - **XID_Start property** - Characters valid at the start of an identifier
@@ -477,8 +477,8 @@ All implementations follow the Unicode Standard and are tested against official 
   - Tailorable break opportunities
   - Complex script handling (CJK, Thai, etc.)
   - Hyphenation support (soft hyphens U+00AD)
-- **UAX #24 (Script Property)**: Comprehensive test coverage
-  - Script property lookup for all Unicode code points
+- **UAX #24 (Script Property)**: 100% conformance (159,866/159,866 tests)
+  - Script property lookup verified for all Unicode code points
   - All 174 scripts in Unicode 17.0.0
   - Mixed-script detection and analysis
   - Security validation for single-script strings
@@ -486,9 +486,9 @@ All implementations follow the Unicode Standard and are tested against official 
   - Grapheme cluster breaking: 766/766 tests
   - Word breaking: 1,944/1,944 tests
   - Sentence breaking: 512/512 tests
-- **UAX #31 (Identifier and Pattern Syntax)**: Comprehensive test coverage
-  - XID_Start, XID_Continue property lookups for all Unicode code points
-  - Pattern_Syntax and Pattern_White_Space properties
+- **UAX #31 (Identifier and Pattern Syntax)**: 100% conformance (297,981/297,981 tests)
+  - XID_Start (145,925 tests), XID_Continue (149,253 tests) properties verified
+  - Pattern_Syntax (2,792 tests) and Pattern_White_Space (11 tests) properties verified
   - Default Identifier Syntax validation
   - Programming language identifier validation
 - **UAX #50 (Vertical Text Layout)**: Comprehensive test coverage
@@ -496,6 +496,10 @@ All implementations follow the Unicode Standard and are tested against official 
   - Glyph transformation detection
   - Base orientation determination
   - Mixed-script vertical layout support
+- **UTS #15 (Unicode Normalization Forms)**: 100% conformance (20,034/20,034 tests)
+  - All four normalization forms (NFC, NFD, NFKC, NFKD) verified
+  - Hangul composition/decomposition, canonical ordering
+  - Complex Indic script compositions
 - **UTS #51 (Unicode Emoji)**: 100% conformance (5,223/5,223 tests)
   - All 6 emoji properties correctly implemented
   - Complete sequence validation (ZWJ, modifier, flag, keycap, tag sequences)
@@ -505,9 +509,9 @@ Implementations are validated using the official Unicode Character Database (UCD
 - [UAX #9 Test Files](https://www.unicode.org/Public/17.0.0/ucd/) - `BidiTest.txt` (513,494 tests), `BidiCharacterTest.txt`
 - [UAX #11 Data Files](https://www.unicode.org/Public/17.0.0/ucd/) - `EastAsianWidth.txt` property data
 - [UAX #14 Test Files](https://www.unicode.org/Public/17.0.0/ucd/auxiliary/) - `LineBreakTest.txt` (19,338 tests)
-- [UAX #24 Data Files](https://www.unicode.org/Public/17.0.0/ucd/) - `Scripts.txt` property data
+- [UAX #24 Data Files](https://www.unicode.org/Public/17.0.0/ucd/) - `Scripts.txt` (159,866 code point tests)
 - [UAX #29 Test Files](https://www.unicode.org/Public/17.0.0/ucd/auxiliary/) - `GraphemeBreakTest.txt`, `WordBreakTest.txt`, `SentenceBreakTest.txt`
-- [UAX #31 Data Files](https://www.unicode.org/Public/17.0.0/ucd/) - `DerivedCoreProperties.txt`, `PropList.txt` property data
+- [UAX #31 Data Files](https://www.unicode.org/Public/17.0.0/ucd/) - `DerivedCoreProperties.txt`, `PropList.txt` (297,981 property tests)
 - [UAX #50 Data Files](https://www.unicode.org/Public/17.0.0/ucd/) - `VerticalOrientation.txt` property data
 - [UTS #51 Test Files](https://www.unicode.org/Public/emoji/17.0/) - `emoji-test.txt` with 5,223 test cases
 - [Unicode Character Database](https://www.unicode.org/Public/17.0.0/ucd/) - Character property data files
