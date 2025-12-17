@@ -85,6 +85,43 @@ text := "Hello world! This is a test."
 breaks := uax14.FindLineBreakOpportunities(text, uax14.HyphensManual)
 ```
 
+### [uax24](./uax24) - Script Property
+
+Implementation of UAX #24 (Unicode Script Property) for identifying the writing system (script) to which a character belongs.
+
+**Status:** Complete with comprehensive test coverage
+
+Supports:
+- Script property lookup for all Unicode 17.0.0 characters
+- 174 scripts including Latin, Greek, Cyrillic, Han, Arabic, Hebrew, and many others
+- Mixed-script detection for security validation
+- Common and Inherited script handling
+- Single-script string validation
+
+```go
+import "github.com/SCKelemen/unicode/uax24"
+
+// Get the script of a character
+script := uax24.LookupScript('A')      // Returns ScriptLatin
+script = uax24.LookupScript('中')      // Returns ScriptHan
+script = uax24.LookupScript('5')       // Returns ScriptCommon
+
+// Check if character belongs to a specific script
+if uax24.IsLatin('A') {
+    // Character is Latin
+}
+
+// Analyze a string for script composition
+info := uax24.AnalyzeScripts("Hello мир")
+fmt.Printf("Scripts: %v\n", info.Scripts)        // [Latin Cyrillic]
+fmt.Printf("Mixed: %v\n", info.IsMixedScript)    // true
+
+// Security: Detect homograph attacks
+if !uax24.IsSingleScript("myVariаble") {  // 'а' is Cyrillic
+    // Warning: Mixed scripts detected
+}
+```
+
 ### [uax29](./uax29) - Text Segmentation
 
 Implementation of UAX #29 (Unicode Text Segmentation) for breaking text into grapheme clusters, words, and sentences.
@@ -131,6 +168,66 @@ for _, pos := range breaks.Words {
 }
 for _, pos := range breaks.Sentences {
     // Process sentence boundaries
+}
+```
+
+### [uax31](./uax31) - Identifier and Pattern Syntax
+
+Implementation of UAX #31 (Unicode Identifier and Pattern Syntax) for determining valid identifier characters in programming languages and pattern-based systems.
+
+**Status:** Complete with comprehensive test coverage
+
+Supports:
+- **XID_Start property** - Characters valid at the start of an identifier
+  - Letters, ideographs, letter numbers across all scripts
+  - Binary search for O(log n) lookups
+- **XID_Continue property** - Characters valid after the first character
+  - XID_Start plus marks, digits, connector punctuation
+  - Includes zero-width joiner and combining marks
+- **Pattern_Syntax property** - Reserved characters for pattern languages
+  - ASCII punctuation and mathematical symbols
+  - Used to identify syntactic elements
+- **Pattern_White_Space property** - Whitespace in patterns
+  - Spaces, tabs, line breaks for pattern tokenization
+- **Default Identifier Syntax** - Complete identifier validation
+  - Pattern: `<XID_Start> <XID_Continue>*`
+  - Stable across Unicode versions
+
+```go
+import "github.com/SCKelemen/unicode/uax31"
+
+// Check if character can start an identifier
+if uax31.IsXIDStart('A') {
+    // Valid identifier start (letters, ideographs)
+}
+
+// Check if character can continue an identifier
+if uax31.IsXIDContinue('5') {
+    // Valid after first character (includes digits, marks)
+}
+
+// Validate complete identifier
+if uax31.IsValidIdentifier("myVar123") {
+    // Valid: starts with letter, continues with letters/digits
+}
+
+// Pattern syntax detection
+if uax31.IsPatternSyntax('*') {
+    // Reserved for pattern languages (regex, etc.)
+}
+
+// Programming language tokenization example
+func isIdentifierChar(r rune, isFirst bool) bool {
+    if isFirst {
+        return uax31.IsXIDStart(r)
+    }
+    return uax31.IsXIDContinue(r)
+}
+
+// Security: Validate identifiers for safety
+identifier := "user_name"
+if uax31.IsValidIdentifier(identifier) {
+    // Identifier follows Unicode standard
 }
 ```
 
@@ -196,14 +293,62 @@ if uts51.IsValidEmojiSequence(sequence) {
 }
 ```
 
+### [uts15](./uts15) - Unicode Normalization Forms
+
+Implementation of UTS #15 (Unicode Normalization Forms) for text normalization, comparison, and canonicalization.
+
+**Status:** Complete with 100% conformance (20,034/20,034 tests passing)
+
+Supports:
+- **NFC (Canonical Composition)** - Recommended form for most uses
+- **NFD (Canonical Decomposition)** - Fully decomposed form
+- **NFKC (Compatibility Composition)** - Aggressive normalization for identifiers
+- **NFKD (Compatibility Decomposition)** - Fully compatibility decomposed
+- **Hangul composition/decomposition** - Algorithmic Hangul syllable handling
+- **Canonical ordering** - Proper combining mark ordering
+- **Normalization stability** - Idempotent operations
+- Complete Unicode 17.0.0 normalization data
+
+```go
+import "github.com/SCKelemen/unicode/uts15"
+
+// Normalize to NFC (recommended for most uses)
+text := "café"  // May be composed or decomposed
+normalized := uts15.NFC(text)
+
+// Compare strings reliably
+s1 := "café"  // Composed form
+s2 := "cafe\u0301"  // Decomposed form (e + combining accent)
+if uts15.NFC(s1) == uts15.NFC(s2) {
+    // Strings are equivalent
+}
+
+// Normalize for searching (NFKC removes formatting distinctions)
+query := "\uFB01le"  // Contains ﬁ ligature
+normalized := uts15.NFKC(query)  // "file"
+
+// Check if already normalized
+if uts15.IsNFC("café") {
+    // No normalization needed
+}
+
+// Security: Detect homograph attacks
+if uts15.IsSingleScript(identifier) && uts15.IsNFKC(identifier) {
+    // Identifier is normalized and single-script
+}
+```
+
 ## Installation
 
 ```bash
 go get github.com/SCKelemen/unicode/uax9
 go get github.com/SCKelemen/unicode/uax11
 go get github.com/SCKelemen/unicode/uax14
+go get github.com/SCKelemen/unicode/uax24
 go get github.com/SCKelemen/unicode/uax29
+go get github.com/SCKelemen/unicode/uax31
 go get github.com/SCKelemen/unicode/uax50
+go get github.com/SCKelemen/unicode/uts15
 go get github.com/SCKelemen/unicode/uts51
 ```
 
@@ -332,10 +477,20 @@ All implementations follow the Unicode Standard and are tested against official 
   - Tailorable break opportunities
   - Complex script handling (CJK, Thai, etc.)
   - Hyphenation support (soft hyphens U+00AD)
+- **UAX #24 (Script Property)**: Comprehensive test coverage
+  - Script property lookup for all Unicode code points
+  - All 174 scripts in Unicode 17.0.0
+  - Mixed-script detection and analysis
+  - Security validation for single-script strings
 - **UAX #29 (Text Segmentation)**: 100% conformance (3,222/3,222 tests)
   - Grapheme cluster breaking: 766/766 tests
   - Word breaking: 1,944/1,944 tests
   - Sentence breaking: 512/512 tests
+- **UAX #31 (Identifier and Pattern Syntax)**: Comprehensive test coverage
+  - XID_Start, XID_Continue property lookups for all Unicode code points
+  - Pattern_Syntax and Pattern_White_Space properties
+  - Default Identifier Syntax validation
+  - Programming language identifier validation
 - **UAX #50 (Vertical Text Layout)**: Comprehensive test coverage
   - Vertical orientation property for all Unicode code points
   - Glyph transformation detection
@@ -350,7 +505,9 @@ Implementations are validated using the official Unicode Character Database (UCD
 - [UAX #9 Test Files](https://www.unicode.org/Public/17.0.0/ucd/) - `BidiTest.txt` (513,494 tests), `BidiCharacterTest.txt`
 - [UAX #11 Data Files](https://www.unicode.org/Public/17.0.0/ucd/) - `EastAsianWidth.txt` property data
 - [UAX #14 Test Files](https://www.unicode.org/Public/17.0.0/ucd/auxiliary/) - `LineBreakTest.txt` (19,338 tests)
+- [UAX #24 Data Files](https://www.unicode.org/Public/17.0.0/ucd/) - `Scripts.txt` property data
 - [UAX #29 Test Files](https://www.unicode.org/Public/17.0.0/ucd/auxiliary/) - `GraphemeBreakTest.txt`, `WordBreakTest.txt`, `SentenceBreakTest.txt`
+- [UAX #31 Data Files](https://www.unicode.org/Public/17.0.0/ucd/) - `DerivedCoreProperties.txt`, `PropList.txt` property data
 - [UAX #50 Data Files](https://www.unicode.org/Public/17.0.0/ucd/) - `VerticalOrientation.txt` property data
 - [UTS #51 Test Files](https://www.unicode.org/Public/emoji/17.0/) - `emoji-test.txt` with 5,223 test cases
 - [Unicode Character Database](https://www.unicode.org/Public/17.0.0/ucd/) - Character property data files
@@ -372,8 +529,11 @@ The implementations follow the conformance model described in [UTR #33: Unicode 
 - [UAX #9: Bidirectional Algorithm](https://www.unicode.org/reports/tr9/)
 - [UAX #11: East Asian Width](https://www.unicode.org/reports/tr11/)
 - [UAX #14: Line Breaking](https://www.unicode.org/reports/tr14/)
+- [UAX #24: Script Property](https://www.unicode.org/reports/tr24/)
 - [UAX #29: Text Segmentation](https://www.unicode.org/reports/tr29/)
+- [UAX #31: Identifier and Pattern Syntax](https://www.unicode.org/reports/tr31/)
 - [UAX #50: Vertical Text Layout](https://www.unicode.org/reports/tr50/)
+- [UTS #15: Unicode Normalization Forms](https://www.unicode.org/reports/tr15/)
 - [UTS #51: Unicode Emoji](https://www.unicode.org/reports/tr51/)
 
 ## License
