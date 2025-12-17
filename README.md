@@ -331,10 +331,117 @@ normalized := uts15.NFKC(query)  // "file"
 if uts15.IsNFC("café") {
     // No normalization needed
 }
+```
 
-// Security: Detect homograph attacks
-if uts15.IsSingleScript(identifier) && uts15.IsNFKC(identifier) {
-    // Identifier is normalized and single-script
+### [uts39](./uts39) - Unicode Security Mechanisms
+
+Implementation of UTS #39 (Unicode Security Mechanisms) for detecting and preventing security issues from confusable characters and mixed scripts.
+
+**Status:** Complete with comprehensive test coverage
+
+Supports:
+- **Confusable detection** - Skeleton algorithm for visual similarity
+  - Identifies lookalike characters (e.g., Cyrillic 'а' vs Latin 'a')
+  - Case-insensitive confusable matching
+  - 6,565 confusable mappings from Unicode 17.0.0
+- **Mixed-script detection** - Identifies suspicious script mixing
+  - Single-script, mixed-script, and cross-script analysis
+  - Script-specific security policies
+- **Restriction levels** - Security profiles for identifiers
+  - ASCII-Only: Strictest, ASCII characters only
+  - Single-Script: One script (excluding Common/Inherited)
+  - Highly-Restrictive: Single script + Common + Inherited
+  - Moderately-Restrictive: Multiple allowed script combinations
+  - Minimally-Restrictive: Latin + one other script
+  - Unrestricted: Any character combination
+- **Safe identifier validation** - Checks for security issues
+  - Invalid invisible characters
+  - Proper identifier structure (UAX #31)
+  - Minimum restriction level enforcement
+
+```go
+import "github.com/SCKelemen/unicode/uts39"
+
+// Detect confusable strings (homograph attacks)
+if uts39.AreConfusable("paypal", "pаypal") {  // Second uses Cyrillic 'а'
+    // Warning: visually similar but different strings
+}
+
+// Get skeleton for comparison
+skel := uts39.Skeleton("Hello")
+
+// Check restriction level
+level := uts39.GetRestrictionLevel("user_name")
+if level >= uts39.HighlyRestrictive {
+    // Identifier meets security requirements
+}
+
+// Detect mixed scripts
+if uts39.IsMixedScript("hello мир") {  // Latin + Cyrillic
+    // Warning: mixed script identifier
+}
+
+// Validate identifier safety
+if uts39.IsSafeIdentifier("user_name") {
+    // Safe: valid identifier, highly restrictive, no invisible chars
+}
+
+// Security validation example
+func validateUsername(username string) error {
+    if !uts39.IsValidIdentifier(username) {
+        return errors.New("invalid identifier format")
+    }
+
+    level := uts39.GetRestrictionLevel(username)
+    if level < uts39.HighlyRestrictive {
+        return errors.New("username uses suspicious character mixing")
+    }
+
+    // Check against known legitimate usernames
+    for _, legitimate := range knownUsernames {
+        if uts39.AreConfusable(username, legitimate) {
+            return errors.New("username too similar to existing user")
+        }
+    }
+
+    return nil
+}
+```
+
+### [uts51](./uts51) - Unicode Emoji
+
+Implementation of UTS #51 (Unicode Emoji) for emoji property detection, sequence validation, and terminal rendering support.
+
+**Status:** Complete with 100% conformance (5,223/5,223 tests passing)
+
+Supports:
+- **Emoji properties** - All 6 core emoji properties
+  - Emoji, Emoji_Presentation, Emoji_Modifier
+  - Emoji_Modifier_Base, Emoji_Component, Extended_Pictographic
+- **Sequence validation** - All emoji sequence types
+  - ZWJ sequences (family emoji, etc.)
+  - Modifier sequences (skin tones)
+  - Flag sequences (regional indicators)
+  - Keycap sequences (#️⃣, *️⃣, 0️⃣-9️⃣)
+  - Tag sequences (subdivision flags)
+- **Terminal rendering** - Width calculation for emoji display
+- **Integration** with UAX #11, #14, #29, #50
+
+```go
+import "github.com/SCKelemen/unicode/uts51"
+
+// Check if character is emoji
+if uts51.IsEmoji('😀') {
+    // Handle emoji
+}
+
+// Calculate width for terminal rendering
+width := uts51.EmojiWidth('😀')  // Returns 2 (like CJK characters)
+
+// Validate emoji sequences
+sequence := []rune{0x1F468, 0x200D, 0x1F469, 0x200D, 0x1F467}  // Family
+if uts51.IsValidEmojiSequence(sequence) {
+    // Valid ZWJ sequence
 }
 ```
 
@@ -349,6 +456,7 @@ go get github.com/SCKelemen/unicode/uax29
 go get github.com/SCKelemen/unicode/uax31
 go get github.com/SCKelemen/unicode/uax50
 go get github.com/SCKelemen/unicode/uts15
+go get github.com/SCKelemen/unicode/uts39
 go get github.com/SCKelemen/unicode/uts51
 ```
 
@@ -500,6 +608,11 @@ All implementations follow the Unicode Standard and are tested against official 
   - All four normalization forms (NFC, NFD, NFKC, NFKD) verified
   - Hangul composition/decomposition, canonical ordering
   - Complex Indic script compositions
+- **UTS #39 (Unicode Security Mechanisms)**: Comprehensive test coverage
+  - Confusable detection with 6,565 mappings from Unicode 17.0.0
+  - Skeleton algorithm for visual similarity detection
+  - Mixed-script detection and restriction levels
+  - Safe identifier validation with security policies
 - **UTS #51 (Unicode Emoji)**: 100% conformance (5,223/5,223 tests)
   - All 6 emoji properties correctly implemented
   - Complete sequence validation (ZWJ, modifier, flag, keycap, tag sequences)
@@ -513,6 +626,7 @@ Implementations are validated using the official Unicode Character Database (UCD
 - [UAX #29 Test Files](https://www.unicode.org/Public/17.0.0/ucd/auxiliary/) - `GraphemeBreakTest.txt`, `WordBreakTest.txt`, `SentenceBreakTest.txt`
 - [UAX #31 Data Files](https://www.unicode.org/Public/17.0.0/ucd/) - `DerivedCoreProperties.txt`, `PropList.txt` (297,981 property tests)
 - [UAX #50 Data Files](https://www.unicode.org/Public/17.0.0/ucd/) - `VerticalOrientation.txt` property data
+- [UTS #39 Data Files](https://www.unicode.org/Public/security/latest/) - `confusables.txt` (6,565 mappings), `IdentifierStatus.txt`
 - [UTS #51 Test Files](https://www.unicode.org/Public/emoji/17.0/) - `emoji-test.txt` with 5,223 test cases
 - [Unicode Character Database](https://www.unicode.org/Public/17.0.0/ucd/) - Character property data files
 
@@ -538,6 +652,7 @@ The implementations follow the conformance model described in [UTR #33: Unicode 
 - [UAX #31: Identifier and Pattern Syntax](https://www.unicode.org/reports/tr31/)
 - [UAX #50: Vertical Text Layout](https://www.unicode.org/reports/tr50/)
 - [UTS #15: Unicode Normalization Forms](https://www.unicode.org/reports/tr15/)
+- [UTS #39: Unicode Security Mechanisms](https://www.unicode.org/reports/tr39/)
 - [UTS #51: Unicode Emoji](https://www.unicode.org/reports/tr51/)
 
 ## License
