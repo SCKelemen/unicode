@@ -76,6 +76,18 @@ jobs:
         curl -fsSL -o uax14/LineBreakTest.txt \
           https://www.unicode.org/Public/17.0.0/ucd/auxiliary/LineBreakTest.txt
 
+        # UTS #39 - Unicode Security Mechanisms (confusables data)
+        curl -fsSL -o uts39/confusables.txt \
+          https://www.unicode.org/Public/security/latest/confusables.txt
+
+        # UAX #24 - Script Property test file
+        curl -fsSL -o uax24/Scripts.txt \
+          https://www.unicode.org/Public/17.0.0/ucd/Scripts.txt
+
+        # UAX #31 - Identifier and Pattern Syntax test file
+        curl -fsSL -o uax31/DerivedCoreProperties.txt \
+          https://www.unicode.org/Public/17.0.0/ucd/DerivedCoreProperties.txt
+
         echo "Download complete!"
 
     - name: Verify downloaded test files
@@ -112,6 +124,39 @@ jobs:
         fi
         echo "✓ uax14/LineBreakTest.txt is valid"
 
+        # Check UTS39 confusables file
+        if [ ! -f "uts39/confusables.txt" ]; then
+          echo "ERROR: uts39/confusables.txt not found"
+          exit 1
+        fi
+        if [ ! -s "uts39/confusables.txt" ]; then
+          echo "ERROR: uts39/confusables.txt is empty"
+          exit 1
+        fi
+        echo "✓ uts39/confusables.txt is valid"
+
+        # Check UAX24 Scripts file
+        if [ ! -f "uax24/Scripts.txt" ]; then
+          echo "ERROR: uax24/Scripts.txt not found"
+          exit 1
+        fi
+        if [ ! -s "uax24/Scripts.txt" ]; then
+          echo "ERROR: uax24/Scripts.txt is empty"
+          exit 1
+        fi
+        echo "✓ uax24/Scripts.txt is valid"
+
+        # Check UAX31 DerivedCoreProperties file
+        if [ ! -f "uax31/DerivedCoreProperties.txt" ]; then
+          echo "ERROR: uax31/DerivedCoreProperties.txt not found"
+          exit 1
+        fi
+        if [ ! -s "uax31/DerivedCoreProperties.txt" ]; then
+          echo "ERROR: uax31/DerivedCoreProperties.txt is empty"
+          exit 1
+        fi
+        echo "✓ uax31/DerivedCoreProperties.txt is valid"
+
         echo "All test files verified successfully!"
 
     - name: Run conformance tests with fresh test files
@@ -134,6 +179,24 @@ jobs:
         echo "Running UAX #14 conformance tests..."
         cd uax14
         go test -v -run TestOfficialUnicodeVectors
+        cd ..
+
+        # Run UTS39 conformance tests
+        echo "Running UTS #39 conformance tests..."
+        cd uts39
+        go test -v -run TestOfficialConfusables
+        cd ..
+
+        # Run UAX24 conformance tests
+        echo "Running UAX #24 conformance tests..."
+        cd uax24
+        go test -v -run TestOfficialScripts
+        cd ..
+
+        # Run UAX31 conformance tests
+        echo "Running UAX #31 conformance tests..."
+        cd uax31
+        go test -v -run TestOfficialIdentifierProperties
         cd ..
 
         echo "All conformance tests passed with official Unicode 17.0.0 test files!"
@@ -182,6 +245,29 @@ jobs:
         go test -v -run TestEmojiProperties
         go test -v -run TestEmojiSequences
 
+    - name: UAX #24 - Script Property Conformance Tests
+      run: |
+        cd uax24
+        go test -v -run TestOfficialScripts
+
+    - name: UTS #15 - Normalization Forms Tests
+      run: |
+        cd uts15
+        go test -v
+
+    - name: UAX #31 - Identifier and Pattern Syntax Conformance Tests
+      run: |
+        cd uax31
+        go test -v -run TestOfficialIdentifierProperties
+
+    - name: UTS #39 - Unicode Security Mechanisms Conformance Tests
+      run: |
+        cd uts39
+        go test -v -run TestOfficialConfusables
+        go test -v -run TestConfusableExamples
+        go test -v -run TestSkeletonAlgorithm
+        go test -v -run TestRestrictionLevelConformance
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -218,6 +304,10 @@ jobs:
       run: |
         go build ./uax11
         go build ./uax14
+        go build ./uax24
         go build ./uax29
+        go build ./uax31
         go build ./uax50
+        go build ./uts15
+        go build ./uts39
         go build ./uts51
