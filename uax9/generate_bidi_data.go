@@ -10,6 +10,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"sort"
@@ -208,7 +209,7 @@ func generateCode(ranges []bidiRange) error {
 	fmt.Fprintf(out, "var bidiData = []bidiRange{\n")
 
 	for _, r := range ranges {
-		className := mapBidiClassName(r.class)
+		className := mapBidiClassName(r.class, r.start, r.end)
 		comment := ""
 		if r.start == r.end {
 			comment = fmt.Sprintf("// U+%04X %s", r.start, r.class)
@@ -242,8 +243,13 @@ func generateCode(ranges []bidiRange) error {
 	return nil
 }
 
-// Map Unicode property names to Go constant names
-func mapBidiClassName(prop string) string {
+// Map Unicode property names to Go constant names.
+//
+// If the Unicode Character Database introduces a new bidi class value that this
+// generator has not been taught about, fail loudly rather than silently
+// mis-classifying every affected code point as L. The caller passes the rune
+// range so the diagnostic identifies the offending data row.
+func mapBidiClassName(prop string, start, end rune) string {
 	switch prop {
 	case "L":
 		return "L"
@@ -292,6 +298,13 @@ func mapBidiClassName(prop string) string {
 	case "PDI":
 		return "PDI"
 	default:
-		return "L" // Default to Left-to-Right
+		var where string
+		if start == end {
+			where = fmt.Sprintf("U+%04X", start)
+		} else {
+			where = fmt.Sprintf("U+%04X..U+%04X", start, end)
+		}
+		log.Fatalf("unknown bidi class %q at %s — update generator", prop, where)
+		return "" // unreachable; log.Fatalf calls os.Exit
 	}
 }

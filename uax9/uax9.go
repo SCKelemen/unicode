@@ -175,8 +175,34 @@ func GetBidiClass(r rune) BidiClass {
 // Returns the computed embedding level for each character. Characters with level -1
 // are removed from display (e.g., explicit formatting characters).
 //
+// Note: rule N0 (paired-bracket resolution) requires knowing the original
+// code points (BD16 identifies brackets by Bidi_Paired_Bracket_Type, which is
+// a code-point property, not a bidi-class property). When entering the
+// algorithm through this classes-only entry point, N0 is skipped — the
+// brackets will be resolved by N1/N2 like any other neutrals. Use
+// [ComputeLevelsFromRunes] to get full UAX #9 conformance including N0.
+//
 // Reference: https://www.unicode.org/reports/tr9/#Basic_Display_Algorithm
 func ComputeLevels(classes []BidiClass, paraLevel int) []int {
+	return computeLevelsImpl(nil, classes, paraLevel)
+}
+
+// ComputeLevelsFromRunes is the rune-aware variant of [ComputeLevels]. It
+// uses the original code points to identify paired brackets (BD16) and
+// resolve them per N0, which classes-only callers cannot do.
+//
+// classes must be the bidi classes corresponding to runes; the slices must
+// have the same length.
+//
+// Reference: https://www.unicode.org/reports/tr9/#Basic_Display_Algorithm
+func ComputeLevelsFromRunes(runes []rune, classes []BidiClass, paraLevel int) []int {
+	return computeLevelsImpl(runes, classes, paraLevel)
+}
+
+// computeLevelsImpl is the shared implementation behind [ComputeLevels] and
+// [ComputeLevelsFromRunes]. When runes is non-nil it enables BD16/N0
+// paired-bracket resolution; otherwise N0 is skipped.
+func computeLevelsImpl(runes []rune, classes []BidiClass, paraLevel int) []int {
 	n := len(classes)
 
 	// Keep original classes for L1 rule
@@ -208,7 +234,7 @@ func ComputeLevels(classes []BidiClass, paraLevel int) []int {
 	// Process each isolating run sequence
 	for _, seqIndexes := range sequences {
 		// Use explicit levels for sos/eos computation
-		seq := newIsolatingRunSequence(seqIndexes, classes, originalClasses, explicitLevels, paraLevel)
+		seq := newIsolatingRunSequence(seqIndexes, classes, originalClasses, explicitLevels, paraLevel, runes)
 
 		// W1-W7: Resolve weak types
 		// https://www.unicode.org/reports/tr9/#Resolving_Weak_Types
@@ -289,8 +315,9 @@ func Reorder(text string, baseDir Direction) string {
 		}
 	}
 
-	// Compute bidirectional embedding levels
-	levels := ComputeLevels(classes, paraLevel)
+	// Compute bidirectional embedding levels (rune-aware path so N0
+	// paired-bracket resolution runs end-to-end).
+	levels := ComputeLevelsFromRunes(runes, classes, paraLevel)
 
 	// L2-L4: Reorder based on levels for visual display
 	// https://www.unicode.org/reports/tr9/#L2
@@ -354,21 +381,24 @@ func adjustEmptyIsolateFormattingLevels(classes []BidiClass, originalClasses []B
 					}
 				}
 
-				// Helper: check if both characters are strong and have the same directionality
-				// Uses originalClasses to check types before resolution
-				// Strong types: L (LTR), R and AL (RTL)
+				// Helper: check if both characters are strong and have the same directionality.
+				// We consult the resolved classes (after W/N rules) because the
+				// empty-isolate level should track the direction the surrounding
+				// text actually resolved to — an originally-ON character that
+				// N1/N2 turned into R contributes R direction here.
 				bothStrongSameDir := func(leftIdx, rightIdx int) bool {
 					if leftIdx < 0 || rightIdx < 0 {
 						return false
 					}
-					leftClass := originalClasses[leftIdx]
-					rightClass := originalClasses[rightIdx]
+					leftClass := classes[leftIdx]
+					rightClass := classes[rightIdx]
 
-					// Check if both are strong types
+					// Check if both are strong types (using the post-W/N
+					// resolved class; AL has already been folded into R by W3).
 					leftIsStrongLTR := leftClass == ClassL
-					leftIsStrongRTL := leftClass == ClassR || leftClass == ClassAL
+					leftIsStrongRTL := leftClass == ClassR
 					rightIsStrongLTR := rightClass == ClassL
-					rightIsStrongRTL := rightClass == ClassR || rightClass == ClassAL
+					rightIsStrongRTL := rightClass == ClassR
 
 					if !((leftIsStrongLTR || leftIsStrongRTL) && (rightIsStrongLTR || rightIsStrongRTL)) {
 						return false
@@ -1104,6 +1134,11 @@ type isolatingRunSequence struct {
 	sos           BidiClass   // Start-of-sequence type (L or R)
 	eos           BidiClass   // End-of-sequence type (L or R)
 	originalTypes []BidiClass // Original types before resolution
+	// runes holds the original code point at each index when available.
+	// Required for BD16 paired-bracket identification + N0; nil when
+	// callers entered the algorithm via the classes-only entry point
+	// (in which case N0 is skipped — no way to identify brackets).
+	runes []rune
 }
 
 // typeForLevel returns L or R based on level parity
@@ -1116,7 +1151,11 @@ func typeForLevel(level int) BidiClass {
 
 // newIsolatingRunSequence creates an isolating run sequence from character indexes.
 // X10: Determine sos and eos for the sequence.
-func newIsolatingRunSequence(indexes []int, classes, originalClasses []BidiClass, levels []int, paraLevel int) *isolatingRunSequence {
+//
+// If runes is non-nil it must be the same length as classes and contain the
+// original code point at each position; this enables BD16/N0 paired-bracket
+// resolution. Pass nil when only bidi classes are available.
+func newIsolatingRunSequence(indexes []int, classes, originalClasses []BidiClass, levels []int, paraLevel int, runes []rune) *isolatingRunSequence {
 	seq := &isolatingRunSequence{
 		indexes:       indexes,
 		types:         make([]BidiClass, len(indexes)),
@@ -1128,11 +1167,17 @@ func newIsolatingRunSequence(indexes []int, classes, originalClasses []BidiClass
 	seq.level = levels[indexes[0]]
 
 	// Copy types and initialize levels for this sequence
+	if runes != nil {
+		seq.runes = make([]rune, len(indexes))
+	}
 	for i, idx := range indexes {
 		seq.types[i] = classes[idx]
 		seq.originalTypes[i] = originalClasses[idx]
 		// All characters in the sequence start at the sequence's base level
 		seq.levels[i] = seq.level
+		if runes != nil {
+			seq.runes[i] = runes[idx]
+		}
 	}
 
 	// Determine sos (start-of-sequence type)
@@ -1311,7 +1356,13 @@ func (seq *isolatingRunSequence) resolveWeakTypes() {
 func (seq *isolatingRunSequence) resolveNeutralTypes() {
 	n := len(seq.types)
 
-	// N0: Paired bracket resolution would go here (not fully implemented)
+	// N0: Paired bracket resolution.
+	// https://www.unicode.org/reports/tr9/#N0
+	// Requires the original code points (for BD16) — only runs when the
+	// caller threaded runes through.
+	if len(seq.runes) > 0 {
+		seq.applyN0()
+	}
 
 	// N1 and N2: Neutrals take direction from surrounding strong types
 	for i := 0; i < n; i++ {
@@ -1355,6 +1406,204 @@ func (seq *isolatingRunSequence) resolveNeutralTypes() {
 			seq.types[i] = typeForLevel(seq.level)
 		}
 	}
+}
+
+// applyN0 implements rule N0 (paired-bracket resolution) for this isolating
+// run sequence. BD16 builds the list of bracket pairs; for each pair we then
+// look inside it (and, if needed, behind it) to decide what direction the
+// brackets resolve to.
+//
+// References:
+//   - BD16: https://www.unicode.org/reports/tr9/#BD16
+//   - N0:   https://www.unicode.org/reports/tr9/#N0
+func (seq *isolatingRunSequence) applyN0() {
+	pairs, ok := seq.findBracketPairs()
+	if !ok {
+		return
+	}
+	seq.resolveBracketPairs(pairs)
+}
+
+// findBracketPairs implements BD16. It walks the isolating run sequence,
+// matching each closing paired bracket with the most-recently-opened
+// compatible opener using a stack of size ≤ 63.
+//
+// Returns (pairs, ok). ok is false when the depth cap is exceeded — per
+// BD16 the entire N0 step is then abandoned for this sequence.
+//
+// The returned pairs slice is sorted ascending by the opening bracket
+// position (the order N0 must process them in).
+//
+// Reference: https://www.unicode.org/reports/tr9/#BD16
+func (seq *isolatingRunSequence) findBracketPairs() ([]bracketPair, bool) {
+	type stackEntry struct {
+		pos  int  // index into seq
+		mate rune // canonical paired (closing) bracket char
+	}
+	const maxBracketStack = 63
+	var stack [maxBracketStack]stackEntry
+	sp := 0
+
+	var pairs []bracketPair
+
+	for i := 0; i < len(seq.runes); i++ {
+		// BD16 identifies brackets by Bidi_Paired_Bracket_Type (a rune
+		// property), but X6 explicit overrides (LRO/RLO) may have
+		// reclassified a bracket's bidi type to L or R before we got
+		// here. Such characters are no longer Other Neutrals and N0
+		// must not resolve them again — skip them in pair construction
+		// so they fall through to N1/N2 (which is a no-op for strong
+		// types).
+		if seq.types[i] != ClassON {
+			continue
+		}
+		ptype, paired := getBracketInfo(seq.runes[i])
+		switch ptype {
+		case bracketOpen:
+			if sp >= maxBracketStack {
+				// BD16: when the cap is exceeded, abandon the
+				// entire N0 step for this sequence.
+				return nil, false
+			}
+			stack[sp] = stackEntry{pos: i, mate: canonicalBracket(paired)}
+			sp++
+		case bracketClose:
+			want := canonicalBracket(seq.runes[i])
+			// BD16: scan top-down for a matching opener. If one is
+			// found, emit the pair and discard everything above it
+			// on the stack (the unmatched openers between the
+			// match and the top of stack are dropped).
+			for j := sp - 1; j >= 0; j-- {
+				if stack[j].mate == want {
+					pairs = append(pairs, bracketPair{openPos: stack[j].pos, closePos: i})
+					sp = j
+					break
+				}
+			}
+			// If no opener matched, the closer is dropped silently.
+		}
+	}
+
+	// BD16 requires pairs in logical order of the opening bracket. The
+	// matching above can emit pairs out of opening-position order — for
+	// example "(a[b)c]" emits the inner `(` …`)` pair before the outer
+	// `[` …`]` pair would have been if it matched, but with mismatched
+	// braces inner can close first. Sort here so callers do not have to.
+	for k := 1; k < len(pairs); k++ {
+		for j := k; j > 0 && pairs[j].openPos < pairs[j-1].openPos; j-- {
+			pairs[j], pairs[j-1] = pairs[j-1], pairs[j]
+		}
+	}
+	return pairs, true
+}
+
+// bracketPair is one match emitted by BD16: positions (in the isolating
+// run sequence) of the matched opening and closing bracket characters.
+type bracketPair struct{ openPos, closePos int }
+
+// resolveBracketPairs implements rule N0 given the pairs identified by BD16.
+//
+// Reference: https://www.unicode.org/reports/tr9/#N0
+func (seq *isolatingRunSequence) resolveBracketPairs(pairs []bracketPair) {
+	embedDir := typeForLevel(seq.level) // ClassL or ClassR
+	oppositeDir := ClassR
+	if embedDir == ClassR {
+		oppositeDir = ClassL
+	}
+
+	for _, p := range pairs {
+		// Scan between (exclusive) the bracket pair for strong types.
+		// N0 a/b says: any strong type matching the embedding direction
+		// settles the pair immediately. We can stop at the first such
+		// match, but must still note whether we saw the opposite at
+		// least once for the c-branch.
+		var foundEmbed, foundOpposite bool
+		for k := p.openPos + 1; k < p.closePos; k++ {
+			d, ok := strongDirOf(seq.types[k])
+			if !ok {
+				continue
+			}
+			if d == embedDir {
+				foundEmbed = true
+				break
+			}
+			foundOpposite = true
+		}
+
+		var resolved BidiClass
+		switch {
+		case foundEmbed:
+			// N0.a/b: any strong type matching embedding direction →
+			// brackets take embedding direction.
+			resolved = embedDir
+		case foundOpposite:
+			// N0.c: only opposite-direction strong types inside.
+			// Look at the nearest preceding strong type in the
+			// sequence; if it matches the opposite direction, the
+			// brackets take the opposite direction (c.1), otherwise
+			// they take the embedding direction (c.2).
+			preceding := seq.sos // c.2 fallback when no strong precedes
+			for k := p.openPos - 1; k >= 0; k-- {
+				if d, ok := strongDirOf(seq.types[k]); ok {
+					preceding = d
+					break
+				}
+			}
+			if preceding == oppositeDir {
+				resolved = oppositeDir
+			} else {
+				resolved = embedDir
+			}
+		default:
+			// N0.d: no strong types inside → leave the brackets
+			// alone (N1/N2 will resolve them like any other
+			// neutrals).
+			continue
+		}
+
+		seq.types[p.openPos] = resolved
+		seq.types[p.closePos] = resolved
+
+		// Final N0 paragraph: "Any number of characters that had
+		// original bidirectional character type NSM prior to the
+		// application of W1 that immediately follow a paired bracket
+		// which changed to L or R under N0 should change to match
+		// the type of their preceding bracket."
+		//
+		// W1 has already replaced those NSMs with whatever was in
+		// front of them — at the time, the brackets were ON, so the
+		// NSMs are now ON. We re-resolve them to the bracket's
+		// resolved type, looking at originalTypes to spot the
+		// original NSMs.
+		for k := p.openPos + 1; k < len(seq.types); k++ {
+			if seq.originalTypes[k] == ClassNSM {
+				seq.types[k] = resolved
+				continue
+			}
+			break
+		}
+		for k := p.closePos + 1; k < len(seq.types); k++ {
+			if seq.originalTypes[k] == ClassNSM {
+				seq.types[k] = resolved
+				continue
+			}
+			break
+		}
+	}
+}
+
+// strongDirOf folds EN and AN into R for N0's strong-type check (the
+// "Treat EN and AN as R" clause). Returns (dir, ok); ok is false for
+// non-strong characters. We cannot use a zero-value sentinel here because
+// ClassL == 0.
+func strongDirOf(c BidiClass) (BidiClass, bool) {
+	switch c {
+	case ClassL:
+		return ClassL, true
+	case ClassR, ClassEN, ClassAN:
+		return ClassR, true
+	}
+	return 0, false
 }
 
 // resolveImplicitLevels resolves implicit levels (I1-I2) within this isolating run sequence.
@@ -1776,11 +2025,32 @@ func reorderByLevels(runes []rune, levels []int, paraLevel int) string {
 //
 // Reference: https://www.unicode.org/reports/tr9/#P2
 func GetParagraphDirection(text string) Direction {
+	// UAX #9 P2: Find the first character of type L, AL, or R, while skipping
+	// over any characters between an isolate initiator (LRI, RLI, or FSI) and
+	// its matching PDI or, if there is no matching PDI, the end of the
+	// paragraph.
+	// Reference: https://www.unicode.org/reports/tr9/#P2
+	isolateDepth := 0
 	for _, r := range text {
 		class := GetBidiClass(r)
+		switch class {
+		case ClassLRI, ClassRLI, ClassFSI:
+			isolateDepth++
+			continue
+		case ClassPDI:
+			if isolateDepth > 0 {
+				isolateDepth--
+			}
+			continue
+		}
+		if isolateDepth > 0 {
+			// Inside an isolate scope; skip per P2.
+			continue
+		}
 		if class == ClassL {
 			return DirectionLTR
-		} else if class == ClassR || class == ClassAL {
+		}
+		if class == ClassR || class == ClassAL {
 			return DirectionRTL
 		}
 	}
