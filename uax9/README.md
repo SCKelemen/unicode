@@ -2,7 +2,13 @@
 
 Implementation of [UAX #9: Unicode Bidirectional Algorithm](https://www.unicode.org/reports/tr9/) in Go.
 
-**Status:** 100% Conformant (all 513,494 official Unicode test vectors passing with full isolating run sequences)
+**Status:** Full official-test conformance on the bundled Unicode 17.0.0 data.
+- BidiTest.txt (synthetic class sequences): **513,494 / 513,494 (100%)** ✅
+- BidiCharacterTest.txt (real code-point sequences):
+  - Paragraph direction (P2/P3): **91,707 / 91,707 (100%)** ✅
+  - Resolved levels: **91,707 / 91,707 (100%)** ✅
+
+Historically sensitive areas were paired-bracket resolution (N0) and isolate-formatting level adjustment inside nested explicit-formatting scopes; both are now covered by the official conformance suite and targeted regression tests.
 
 ## Overview
 
@@ -69,23 +75,27 @@ go test -v
 
 ### Test Results
 
-- **Total tests**: 513,494
-- **Passed**: 513,494
-- **Pass rate**: 100.0%
-- **Failed**: 0
+- **BidiTest.txt** (Unicode 17.0.0): 513,494 / 513,494 passed (100.0%) ✅
+- **BidiCharacterTest.txt** (Unicode 17.0.0): 91,707 test cases
+  - Paragraph direction: 91,707 / 91,707 (100%) ✅
+  - Resolved levels: 91,707 / 91,707 (100%) ✅
 
 The test suite includes:
 - Official Unicode BidiTest.txt (513,494 test cases) - **ALL PASSING** ✅
-- BidiCharacterTest.txt for character-specific cases
+- Official Unicode BidiCharacterTest.txt (91,707 test cases) - **ALL PASSING** ✅
+- Focused BD16/N0 regression tests for paired brackets and nested bracket cases
 - Custom unit tests for common use cases
 
 ## Conformance Achievements
 
-- ✅ **100% conformance** on all 513,494 official Unicode test vectors
+- ✅ **100% conformance** on BidiTest.txt (513,494 synthetic-class vectors)
+- ✅ **100% conformance** on BidiCharacterTest.txt paragraph direction (91,707 real code-point vectors)
+- ✅ **100% conformance** on BidiCharacterTest.txt resolved levels (91,707 real code-point vectors)
+- ✅ **Paired-bracket resolution (N0)**: BD16 bracket matching + N0 resolution over isolating run sequences
 - ✅ **Multi-isolate sequences**: Advanced context discovery that skips entire isolate sequences
 - ✅ **Deep embedding nesting**: Correct handling of extreme nesting depths (up to 125 levels)
 - ✅ **Overflow isolation**: Proper tracking of overflow embeddings inside/outside overflow isolates
-- ✅ **Empty isolate adjustment**: Sophisticated directionality logic for empty isolate formatting characters
+- ✅ **Empty isolate adjustment**: Direction-sensitive level assignment for empty and matched isolate formatting characters in nested explicit-formatting scopes
 
 The implementation uses full isolating run sequences (BD13) as specified in UAX#9 and handles all edge cases including pathological sequences that would rarely occur in natural text.
 

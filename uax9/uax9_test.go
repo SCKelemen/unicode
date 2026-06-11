@@ -142,6 +142,51 @@ func TestGetParagraphDirection(t *testing.T) {
 			text:     "",
 			expected: DirectionLTR, // Default
 		},
+		// UAX #9 P2: skip over characters between an isolate initiator and its
+		// matching PDI when finding the first strong character.
+		{
+			// FSI + L (A) + PDI + L (B). 'B' is the first non-isolated strong
+			// character, so direction must come from it.
+			name:     "FSI-wrapped L followed by L",
+			text:     "\u2068A\u2069B",
+			expected: DirectionLTR,
+		},
+		{
+			// RLI + L (A) + PDI + L (B). Same idea — the 'A' inside the isolate
+			// must be skipped; 'B' is the first counted strong char.
+			name:     "RLI-wrapped L followed by L",
+			text:     "\u2067A\u2069B",
+			expected: DirectionLTR,
+		},
+		{
+			// LRI + LTR (ABC) + PDI + Arabic letter (AL). The Arabic letter is
+			// the first non-isolated strong → paragraph direction RTL.
+			name:     "LRI-wrapped LTR followed by Arabic",
+			text:     "\u2066ABC\u2069\u062F",
+			expected: DirectionRTL,
+		},
+		{
+			// Unterminated RLI: per UAX #9 P2 the contents are skipped through
+			// the end of the paragraph (no matching PDI), so no strong
+			// characters are counted and we fall back to the default LTR.
+			name:     "unterminated RLI swallows rest of paragraph",
+			text:     "\u2067ABCDE",
+			expected: DirectionLTR,
+		},
+		{
+			// Strong character precedes the isolate, so direction is taken
+			// from it (Arabic letter → RTL).
+			name:     "strong char before isolate wins",
+			text:     "\u062F\u2068Hello\u2069",
+			expected: DirectionRTL,
+		},
+		{
+			// Nested isolates with no matching PDI for the outer one — entire
+			// remainder is skipped.
+			name:     "nested unterminated isolate",
+			text:     "\u2067A\u2068B\u2069CDE",
+			expected: DirectionLTR,
+		},
 	}
 
 	for _, tt := range tests {
