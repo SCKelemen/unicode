@@ -41,7 +41,7 @@ func ExampleGetRestrictionLevel() {
 	examples := []string{
 		"hello_world", // ASCII-Only
 		"café",        // Single-Script (Latin)
-		"hello世界",     // Minimally-Restrictive (Latin + Han)
+		"hello世界",     // Highly-Restrictive (Latin + Han ⊂ Latn + Jpan)
 		"hello мир",   // Minimally-Restrictive (Latin + Cyrillic)
 	}
 
@@ -53,7 +53,7 @@ func ExampleGetRestrictionLevel() {
 	// Output:
 	// "hello_world": ASCII-Only
 	// "café": Single-Script
-	// "hello世界": Minimally-Restrictive
+	// "hello世界": Highly-Restrictive
 	// "hello мир": Minimally-Restrictive
 }
 
