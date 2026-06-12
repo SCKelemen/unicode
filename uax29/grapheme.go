@@ -141,12 +141,31 @@ func isIndicConjunctConsonant(r rune) bool {
 //   - Passes all 766 official Unicode conformance tests
 //   - Returns byte positions, not rune positions
 //   - Handles all emoji sequences including ZWJ and modifier sequences
+//
+// Contract:
+//   - Empty input returns []int{}.
+//   - Non-empty input returns a slice that starts with 0, ends with len(text),
+//     is strictly monotonically increasing, and every value is a valid byte
+//     offset into text.
+//   - Invalid UTF-8 is handled per Go's standard contract: each ill-formed
+//     byte is treated as a single U+FFFD that consumes exactly 1 byte (no
+//     panics; no offset inflation).
 func FindGraphemeBreaks(text string) []int {
 	if len(text) == 0 {
 		return []int{}
 	}
 
-	runes := []rune(text)
+	// Decode the input once, recording each rune together with its true byte
+	// offset in the original string. Ranging over a string yields the byte
+	// index of each rune and replaces every ill-formed byte with a single
+	// U+FFFD that advances exactly one byte, matching utf8.DecodeRuneInString.
+	runes := make([]rune, 0, len(text))
+	runeByteOffsets := make([]int, 0, len(text)+1)
+	for byteIdx, r := range text {
+		runes = append(runes, r)
+		runeByteOffsets = append(runeByteOffsets, byteIdx)
+	}
+	runeByteOffsets = append(runeByteOffsets, len(text))
 	if len(runes) == 0 {
 		return []int{}
 	}
@@ -262,12 +281,7 @@ func FindGraphemeBreaks(text string) []int {
 		}
 
 		if shouldBreak {
-			// Calculate byte position
-			bytePos := 0
-			for j := 0; j < i; j++ {
-				bytePos += len(string(runes[j]))
-			}
-			breaks = append(breaks, bytePos)
+			breaks = append(breaks, runeByteOffsets[i])
 		}
 	}
 
