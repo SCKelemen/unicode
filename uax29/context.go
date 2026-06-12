@@ -1,5 +1,20 @@
 package uax29
 
+// computeByteOffsets returns a slice of length runeCount+1 mapping rune index
+// to its byte offset in text. The final entry is always len(text). The
+// function ranges over text, which means each ill-formed UTF-8 byte is
+// counted as a single U+FFFD that advances exactly one byte; this matches
+// Go's []rune(text) rune count, so the slice aligns with rune slices produced
+// either way.
+func computeByteOffsets(text string, runeCount int) []int {
+	offsets := make([]int, 0, runeCount+1)
+	for byteIdx := range text {
+		offsets = append(offsets, byteIdx)
+	}
+	offsets = append(offsets, len(text))
+	return offsets
+}
+
 // GraphemeBreakContext manages state for grapheme cluster boundary detection.
 // It provides a clean abstraction over the text and classification data,
 // making rule implementation straightforward and maintainable.
@@ -23,6 +38,11 @@ type GraphemeBreakContext struct {
 
 // NewGraphemeBreakContext creates a context for grapheme cluster boundary detection.
 // It pre-classifies all runes using the packed data structure for efficiency.
+//
+// Invalid UTF-8 in text is handled per Go's standard contract: each ill-formed
+// byte is treated as a single U+FFFD that consumes exactly 1 byte. Byte
+// positions reported via BytePos() are always valid offsets into the original
+// text, never into a re-encoded form.
 func NewGraphemeBreakContext(text string) *GraphemeBreakContext {
 	if text == "" {
 		return &GraphemeBreakContext{
@@ -33,22 +53,23 @@ func NewGraphemeBreakContext(text string) *GraphemeBreakContext {
 		}
 	}
 
-	runes := []rune(text)
+	// Decode the input once. Ranging over a string yields the true byte index
+	// of each rune and produces a single U+FFFD (advancing exactly 1 byte)
+	// for each ill-formed byte, so bytePositions stays consistent with the
+	// original text even for invalid UTF-8.
+	runes := make([]rune, 0, len(text))
+	bytePositions := make([]int, 0, len(text)+1)
+	for byteIdx, r := range text {
+		runes = append(runes, r)
+		bytePositions = append(bytePositions, byteIdx)
+	}
+	bytePositions = append(bytePositions, len(text))
 	n := len(runes)
 
 	// Pre-classify all runes using packed data
 	classes := make([]GraphemeBreakClass, n)
 	for i, r := range runes {
 		classes[i] = classifyRune(r).Grapheme()
-	}
-
-	// Pre-compute byte positions for all rune boundaries
-	bytePositions := make([]int, n+1)
-	bytePositions[0] = 0
-	bytePos := 0
-	for i, r := range runes {
-		bytePos += len(string(r))
-		bytePositions[i+1] = bytePos
 	}
 
 	ctx := &GraphemeBreakContext{
@@ -67,6 +88,10 @@ func NewGraphemeBreakContext(text string) *GraphemeBreakContext {
 
 // NewGraphemeBreakContextFromClasses creates a context using pre-classified data.
 // This is used by the single-pass API to avoid redundant classification.
+//
+// Byte positions are derived from text directly (via range-over-string), so
+// the mapping from rune index to byte offset is always correct even when
+// text contains ill-formed UTF-8.
 func NewGraphemeBreakContextFromClasses(text string, runes []rune, packedClasses []PackedBreakClass) *GraphemeBreakContext {
 	if len(runes) == 0 {
 		return &GraphemeBreakContext{
@@ -85,14 +110,12 @@ func NewGraphemeBreakContextFromClasses(text string, runes []rune, packedClasses
 		classes[i] = packedClasses[i].Grapheme()
 	}
 
-	// Pre-compute byte positions for all rune boundaries
-	bytePositions := make([]int, n+1)
-	bytePositions[0] = 0
-	bytePos := 0
-	for i, r := range runes {
-		bytePos += len(string(r))
-		bytePositions[i+1] = bytePos
-	}
+	// Pre-compute byte positions by walking the original text. This stays
+	// consistent with len(text) and tolerates invalid UTF-8 (each ill-formed
+	// byte is one U+FFFD that consumes 1 byte). Rune count from range over
+	// text matches len(runes) when runes was produced by either []rune(text)
+	// or by ranging over text.
+	bytePositions := computeByteOffsets(text, n)
 
 	ctx := &GraphemeBreakContext{
 		text:          text,
@@ -270,25 +293,19 @@ func NewWordBreakContextFromClasses(text string, runes []rune, packedClasses []P
 		classes[i] = packedClasses[i].Word()
 	}
 
-	// Convert grapheme break byte positions to rune indices
+	// Pre-compute byte positions by walking the original text. This stays
+	// consistent with len(text) and tolerates invalid UTF-8.
+	bytePositions := computeByteOffsets(text, n)
+
+	// Convert grapheme break byte positions to rune indices, using the true
+	// rune-to-byte mapping for the original text (not the re-encoded form).
 	graphemeBoundaries := make([]int, len(graphemeBreaks))
-	byteToRune := 0
 	runeIdx := 0
 	for i, bytePos := range graphemeBreaks {
-		for byteToRune < bytePos && runeIdx < len(runes) {
-			byteToRune += len(string(runes[runeIdx]))
+		for runeIdx < n && bytePositions[runeIdx] < bytePos {
 			runeIdx++
 		}
 		graphemeBoundaries[i] = runeIdx
-	}
-
-	// Pre-compute byte positions for all rune boundaries
-	bytePositions := make([]int, n+1)
-	bytePositions[0] = 0
-	bytePos := 0
-	for i, r := range runes {
-		bytePos += len(string(r))
-		bytePositions[i+1] = bytePos
 	}
 
 	ctx := &WordBreakContext{
@@ -471,25 +488,19 @@ func NewSentenceBreakContextFromClasses(text string, runes []rune, packedClasses
 		classes[i] = packedClasses[i].Sentence()
 	}
 
-	// Convert word break byte positions to rune indices
+	// Pre-compute byte positions by walking the original text. This stays
+	// consistent with len(text) and tolerates invalid UTF-8.
+	bytePositions := computeByteOffsets(text, n)
+
+	// Convert word break byte positions to rune indices, using the true
+	// rune-to-byte mapping for the original text (not the re-encoded form).
 	wordBoundaries := make([]int, len(wordBreaks))
-	byteToRune := 0
 	runeIdx := 0
 	for i, bytePos := range wordBreaks {
-		for byteToRune < bytePos && runeIdx < len(runes) {
-			byteToRune += len(string(runes[runeIdx]))
+		for runeIdx < n && bytePositions[runeIdx] < bytePos {
 			runeIdx++
 		}
 		wordBoundaries[i] = runeIdx
-	}
-
-	// Pre-compute byte positions for all rune boundaries
-	bytePositions := make([]int, n+1)
-	bytePositions[0] = 0
-	bytePos := 0
-	for i, r := range runes {
-		bytePos += len(string(r))
-		bytePositions[i+1] = bytePos
 	}
 
 	ctx := &SentenceBreakContext{
