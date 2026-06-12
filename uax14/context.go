@@ -1,11 +1,47 @@
 package uax14
 
-import "unicode"
+import (
+	"unicode"
+	"unicode/utf8"
+)
 
 // isCombiningMark checks if a rune is a combining mark (Mn or Mc).
 // Used for LB9 rule: SA characters that are combining marks should be treated as CM.
 func isCombiningMark(r rune) bool {
 	return unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Mc, r)
+}
+
+// decodeRunesWithOffsets decodes text into a parallel pair of slices:
+//
+//   - runes: the decoded code points, with each ill-formed UTF-8 byte replaced by
+//     utf8.RuneError (U+FFFD), mirroring what []rune(text) would produce.
+//   - bytePositions: byte offsets into the ORIGINAL input. bytePositions has
+//     length len(runes)+1; bytePositions[i] is the start offset of the i-th rune
+//     in text, and bytePositions[len(runes)] == len(text).
+//
+// Why a dedicated helper instead of []rune(text) plus len(string(r)) or
+// utf8.RuneLen(r)?
+//
+// []rune(text) silently replaces each invalid UTF-8 byte with U+FFFD, which
+// re-encodes to 3 bytes. Computing byte offsets afterwards via len(string(r))
+// or utf8.RuneLen(r) therefore reports 3 bytes for what was a single bad byte
+// in the input, drifting all subsequent break offsets off of real byte
+// positions. utf8.DecodeRuneInString returns (RuneError, 1) for an invalid
+// byte (see https://pkg.go.dev/unicode/utf8#DecodeRuneInString), which is what
+// we need to keep the parallel offsets faithful to the original input.
+func decodeRunesWithOffsets(text string) (runes []rune, bytePositions []int) {
+	if text == "" {
+		return nil, []int{0}
+	}
+	runes = make([]rune, 0, len(text))
+	bytePositions = make([]int, 1, len(text)+1)
+	for i := 0; i < len(text); {
+		r, size := utf8.DecodeRuneInString(text[i:])
+		runes = append(runes, r)
+		i += size
+		bytePositions = append(bytePositions, i)
+	}
+	return runes, bytePositions
 }
 
 // QuoteContext tracks an opening quote for pairing.
@@ -85,22 +121,16 @@ func NewLineBreakContext(text string, hyphens Hyphens) *LineBreakContext {
 		}
 	}
 
-	runes := []rune(text)
+	// Decode using DecodeRuneInString so byte offsets track the ORIGINAL input
+	// even for malformed UTF-8 (where []rune() would re-encode each bad byte to
+	// the 3-byte U+FFFD and shift every subsequent offset).
+	runes, bytePositions := decodeRunesWithOffsets(text)
 	n := len(runes)
 
 	// Pre-classify all runes
 	classes := make([]BreakClass, n)
 	for i, r := range runes {
 		classes[i] = getBreakClass(r)
-	}
-
-	// Pre-compute byte positions for all rune boundaries
-	bytePositions := make([]int, n+1)
-	bytePositions[0] = 0
-	bytePos := 0
-	for i, r := range runes {
-		bytePos += len(string(r))
-		bytePositions[i+1] = bytePos
 	}
 
 	ctx := &LineBreakContext{

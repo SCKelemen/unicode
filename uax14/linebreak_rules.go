@@ -1743,7 +1743,12 @@ func FindLineBreakOpportunitiesWithRules(text string, hyphens Hyphens) []int {
 		return findLineBreaksASCII(text)
 	}
 
-	runes := []rune(text)
+	// Decode using DecodeRuneInString so byte offsets stay aligned with the
+	// ORIGINAL input bytes. []rune(text) plus len(string(runes[:i])) drift on
+	// malformed UTF-8 because each invalid byte is re-encoded as the 3-byte
+	// U+FFFD. utf8.DecodeRuneInString returns (RuneError, 1) for a single
+	// invalid byte, matching the stdlib's behavior for bad UTF-8 sequences.
+	runes, bytePositions := decodeRunesWithOffsets(text)
 	if len(runes) == 0 {
 		return []int{0}
 	}
@@ -1879,8 +1884,9 @@ func FindLineBreakOpportunitiesWithRules(text string, hyphens Hyphens) []int {
 		}
 
 		if decision == BreakYes {
-			// Insert break at current byte position
-			bytePos := len(string(runes[:i]))
+			// Insert break at current byte position. Use the precomputed
+			// original-input byte offset so malformed UTF-8 doesn't drift it.
+			bytePos := bytePositions[i]
 			breakPoints = append(breakPoints, bytePos)
 
 			// Update prevClass after break (LB10 applies)
