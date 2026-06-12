@@ -182,7 +182,11 @@ func TestRestrictionLevelConformance(t *testing.T) {
 		{"Latin", "café", SingleScript, SingleScript},
 		{"Cyrillic", "привет", SingleScript, SingleScript},
 		{"Han", "你好", SingleScript, SingleScript},
-		{"Latin+Han", "hello世界", MinimallyRestrictive, MinimallyRestrictive},
+		// Per UAX #39 §5.2 Table 1, Latin + Han is a subset of Latn + Jpan,
+		// so it qualifies as HighlyRestrictive.
+		{"Latin+Han", "hello世界", HighlyRestrictive, HighlyRestrictive},
+		// Latin + Cyrillic is excluded from ModeratelyRestrictive, so it
+		// lands at MinimallyRestrictive.
 		{"Latin+Cyrillic", "hello мир", MinimallyRestrictive, MinimallyRestrictive},
 	}
 

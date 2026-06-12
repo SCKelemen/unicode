@@ -14,7 +14,11 @@
 // The skeleton algorithm identifies visually confusable strings by
 // normalizing them to a canonical form:
 //
-//	skeleton(X) = toNFD(toCaseFold(toNFKD(X)))
+//	skeleton(X) = applyConfusables( toNFD( toCaseFold( toNFKD(X) ) ) )
+//
+// (The base transform follows the legacy UTS #39 ordering documented in this
+// package; the confusables map is applied to the final NFD form and the
+// result is iterated to a fixed point.)
 //
 // Two strings are confusable if their skeletons are identical.
 //
@@ -56,7 +60,7 @@
 package uts39
 
 import (
-	"strings"
+	"fmt"
 
 	"github.com/SCKelemen/unicode/v6/uax24"
 	"github.com/SCKelemen/unicode/v6/uax31"
@@ -110,39 +114,63 @@ func (l RestrictionLevel) String() string {
 
 // Skeleton returns the skeleton of a string for confusable detection.
 //
-// The skeleton algorithm normalizes strings to identify visual confusability:
+// The skeleton algorithm normalizes strings to identify visual confusability.
+// This implementation follows the legacy UTS #39 ordering documented for this
+// package:
 //
-//	skeleton(X) = toNFD(toCaseFold(toNFKD(X)))
+//	skeleton(X) = applyConfusables( toNFD( toCaseFold( toNFKD(X) ) ) )
+//
+// where:
+//
+//   - toNFKD applies Unicode Normalization Form KD (compatibility decomposition).
+//   - toCaseFold applies "full" Unicode case folding (status C+F mappings from
+//     CaseFolding.txt); this is what causes "ß" to fold to "ss" and what
+//     distinguishes proper folding from a simple strings.ToLower call.
+//   - toNFD applies Unicode Normalization Form D (canonical decomposition).
+//   - applyConfusables applies the confusables.txt prototype mappings to the
+//     final NFD form.
+//
+// After the initial transform, the (NFD → applyConfusables) tail is repeated
+// until a fixed point is reached. The function is mathematically idempotent
+// per UTS #39, so convergence is expected within a handful of iterations.
+// A defensive safety cap (16 iterations) panics on non-convergence to surface
+// any future data regressions rather than silently truncate.
 //
 // Two strings are confusable if their skeletons are equal.
 //
 // Example:
 //
-//	skeleton("paypal") == skeleton("pаypal")  // true (Cyrillic 'а')
+//	Skeleton("paypal") == Skeleton("pаypal")  // true (Cyrillic 'а')
+//	Skeleton("ß")      == Skeleton("ss")      // true (full case fold)
 //
 // See: https://www.unicode.org/reports/tr39/#Confusable_Detection
 func Skeleton(s string) string {
-	// Step 1: Apply NFKD normalization and confusable mappings
+	// Base transform: NFKD → caseFold → NFD → applyConfusables.
 	s = uts15.NFKD(s)
+	s = caseFold(s)
+	s = uts15.NFD(s)
 	s = applyConfusables(s)
 
-	// Step 2: Apply case folding (convert to lowercase)
-	s = strings.ToLower(s)
-
-	// Step 3: Apply NFD normalization and confusable mappings until fixed point
-	// Most strings reach fixed point in 1-2 iterations
-	for i := 0; i < 3; i++ { // Limit iterations to prevent infinite loops
+	// Iterate the (NFD → confusables) tail to a fixed point. Per UTS #39
+	// the skeleton transform is idempotent, but a confusable replacement
+	// may produce a sequence that is not in NFD or that itself maps further,
+	// so a small number of iterations may be required.
+	const maxIterations = 16
+	for i := 0; i < maxIterations; i++ {
 		prev := s
 		s = uts15.NFD(s)
 		s = applyConfusables(s)
-
-		// Stop if we've reached a fixed point
 		if s == prev {
-			break
+			return s
 		}
 	}
 
-	return s
+	// Reaching this point means the skeleton transform did not converge
+	// within the safety cap, which would indicate a regression in the
+	// confusables data (e.g. a mapping cycle). Surface this loudly rather
+	// than silently truncate the result.
+	panic(fmt.Sprintf("uts39: Skeleton failed to converge after %d iterations (input=%q)",
+		maxIterations, s))
 }
 
 // AreConfusable reports whether two strings are visually confusable.
@@ -195,15 +223,93 @@ func getConfusableTarget(r rune) string {
 	return ""
 }
 
-// GetRestrictionLevel returns the restriction level of a string.
+// caseFold applies Unicode "full" case folding to s, using the C+F mappings
+// from CaseFolding.txt. This is what UTS #39 §4 calls toCaseFold.
 //
-// Restriction levels from most to least restrictive:
-//   - ASCIIOnly: Only ASCII characters
-//   - SingleScript: One script (excluding Common/Inherited)
-//   - HighlyRestrictive: One script + Common + Inherited
-//   - ModeratelyRestrictive: Multiple scripts following specific rules
-//   - MinimallyRestrictive: Latin + one other script
-//   - Unrestricted: Any character combination
+// Unlike strings.ToLower, full case folding can produce a string longer than
+// its input (e.g. "ß" → "ss", "ﬃ" → "ffi", "İ" → "i\u0307") and uses Unicode's
+// language-neutral folding (no Turkic-specific 'T' mappings).
+func caseFold(s string) string {
+	// Fast path: pure ASCII. Only A-Z need folding; everything else is
+	// already at its folded form.
+	allASCII := true
+	needsFold := false
+	for i := 0; i < len(s); i++ {
+		b := s[i]
+		if b >= 0x80 {
+			allASCII = false
+			break
+		}
+		if b >= 'A' && b <= 'Z' {
+			needsFold = true
+		}
+	}
+	if allASCII {
+		if !needsFold {
+			return s
+		}
+		// ASCII-only with at least one upper-case letter: fold in place.
+		buf := make([]byte, len(s))
+		for i := 0; i < len(s); i++ {
+			b := s[i]
+			if b >= 'A' && b <= 'Z' {
+				b += 'a' - 'A'
+			}
+			buf[i] = b
+		}
+		return string(buf)
+	}
+
+	// General path: walk runes and substitute via the case fold table.
+	// Pre-grow capacity slightly to absorb the common 1→1 case without
+	// reallocation, while still allowing 1→N expansion (e.g. ß → ss).
+	var b []byte
+	if cap(b) < len(s) {
+		b = make([]byte, 0, len(s)+8)
+	}
+	for _, r := range s {
+		if folded := getCaseFoldTarget(r); folded != "" {
+			b = append(b, folded...)
+		} else {
+			b = append(b, string(r)...)
+		}
+	}
+	return string(b)
+}
+
+// getCaseFoldTarget returns the case-folded target for a rune, or empty
+// string if r folds to itself. Uses binary search over caseFoldData.
+func getCaseFoldTarget(r rune) string {
+	// caseFoldData entries are sorted by source code point.
+	lo, hi := 0, len(caseFoldData)
+	for lo < hi {
+		mid := lo + (hi-lo)/2
+		if r < caseFoldData[mid].source {
+			hi = mid
+		} else if r > caseFoldData[mid].source {
+			lo = mid + 1
+		} else {
+			return caseFoldData[mid].target
+		}
+	}
+	return ""
+}
+
+// GetRestrictionLevel returns the restriction level of a string per
+// UAX #39 §5.2 Table 1.
+//
+// Restriction levels are ordered from most to least restrictive:
+//
+//   - ASCIIOnly:              Only ASCII characters.
+//   - SingleScript:           Exactly one script (Common/Inherited ignored).
+//   - HighlyRestrictive:      Single script, OR Latin combined with one of the
+//     JCB script groups: {Han, Hiragana, Katakana} (Latn+Jpan),
+//     {Han, Bopomofo} (Latn+Hanb), or {Han, Hangul} (Latn+Kore).
+//   - ModeratelyRestrictive:  Latin plus exactly one other script that is not
+//     Cyrillic or Greek (per UAX #39 §5.2 Table 1).
+//   - MinimallyRestrictive:   Any other multi-script combination (e.g. Latin +
+//     Cyrillic, Latin + Greek).
+//   - Unrestricted:           Empty string / fallback.
 //
 // See: https://www.unicode.org/reports/tr39/#Restriction_Level_Detection
 func GetRestrictionLevel(s string) RestrictionLevel {
@@ -211,7 +317,7 @@ func GetRestrictionLevel(s string) RestrictionLevel {
 		return Unrestricted
 	}
 
-	// Check if ASCII-only
+	// Check if ASCII-only.
 	isASCII := true
 	for _, r := range s {
 		if r > 127 {
@@ -223,10 +329,8 @@ func GetRestrictionLevel(s string) RestrictionLevel {
 		return ASCIIOnly
 	}
 
-	// Get all scripts used
+	// Collect all scripts and filter out Common / Inherited.
 	scripts := GetIdentifierScripts(s)
-
-	// Filter out Common and Inherited
 	mainScripts := make([]uax24.Script, 0, len(scripts))
 	for _, script := range scripts {
 		if script != uax24.ScriptCommon && script != uax24.ScriptInherited {
@@ -234,39 +338,95 @@ func GetRestrictionLevel(s string) RestrictionLevel {
 		}
 	}
 
-	// SingleScript: only one main script
+	// SingleScript: only one resolved script.
 	if len(mainScripts) == 1 {
 		return SingleScript
 	}
 
-	// HighlyRestrictive: one script + Common + Inherited is same as SingleScript
-	// for our purposes since we filtered out Common/Inherited
-	if len(mainScripts) == 1 {
+	// HighlyRestrictive: per UAX #39 §5.2 Table 1, the set of scripts (after
+	// removing Common and Inherited) must be a subset of one of the following
+	// CJK augmentations of Latin:
+	//
+	//     a) {Latin, Han, Hiragana, Katakana}   (Latn + Jpan)
+	//     b) {Latin, Han, Bopomofo}             (Latn + Hanb)
+	//     c) {Latin, Han, Hangul}               (Latn + Kore)
+	//
+	// These are intentionally checked as subset relations so that, e.g.,
+	// "Latin + Han" alone also qualifies (it is a subset of all three).
+	if isScriptSubset(mainScripts, latnJpanSet) ||
+		isScriptSubset(mainScripts, latnHanbSet) ||
+		isScriptSubset(mainScripts, latnKoreSet) {
 		return HighlyRestrictive
 	}
 
-	// Check if Latin is present
-	hasLatin := false
-	for _, script := range mainScripts {
-		if script == uax24.ScriptLatin {
-			hasLatin = true
-			break
+	// ModeratelyRestrictive: Latin + exactly one other script, excluding the
+	// historically high-confusability scripts Cyrillic and Greek per
+	// UAX #39 §5.2 Table 1.
+	hasLatin := containsScript(mainScripts, uax24.ScriptLatin)
+	if hasLatin && len(mainScripts) == 2 {
+		other := otherScript(mainScripts, uax24.ScriptLatin)
+		if other != uax24.ScriptCyrillic && other != uax24.ScriptGreek {
+			return ModeratelyRestrictive
 		}
 	}
 
-	// MinimallyRestrictive: Latin + exactly one other script
-	if hasLatin && len(mainScripts) == 2 {
-		return MinimallyRestrictive
-	}
+	// MinimallyRestrictive: any remaining multi-script combination
+	// (e.g. Latin + Cyrillic, Latin + Greek, or three or more scripts not
+	// captured by HighlyRestrictive).
+	return MinimallyRestrictive
+}
 
-	// ModeratelyRestrictive: multiple scripts with specific allowed combinations
-	// For simplicity, we consider any multi-script as moderately restrictive
-	// unless it matches minimally restrictive
-	if len(mainScripts) > 1 {
-		return ModeratelyRestrictive
-	}
+// latnJpanSet is the script set for Latin + Japanese (Latn + Jpan).
+var latnJpanSet = map[uax24.Script]struct{}{
+	uax24.ScriptLatin:    {},
+	uax24.ScriptHan:      {},
+	uax24.ScriptHiragana: {},
+	uax24.ScriptKatakana: {},
+}
 
-	return Unrestricted
+// latnHanbSet is the script set for Latin + Han-with-Bopomofo (Latn + Hanb).
+var latnHanbSet = map[uax24.Script]struct{}{
+	uax24.ScriptLatin:    {},
+	uax24.ScriptHan:      {},
+	uax24.ScriptBopomofo: {},
+}
+
+// latnKoreSet is the script set for Latin + Korean (Latn + Kore).
+var latnKoreSet = map[uax24.Script]struct{}{
+	uax24.ScriptLatin:  {},
+	uax24.ScriptHan:    {},
+	uax24.ScriptHangul: {},
+}
+
+// isScriptSubset reports whether every script in scripts is also in allowed.
+func isScriptSubset(scripts []uax24.Script, allowed map[uax24.Script]struct{}) bool {
+	for _, s := range scripts {
+		if _, ok := allowed[s]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// containsScript reports whether scripts contains target.
+func containsScript(scripts []uax24.Script, target uax24.Script) bool {
+	for _, s := range scripts {
+		if s == target {
+			return true
+		}
+	}
+	return false
+}
+
+// otherScript returns the first script in scripts that is not equal to skip.
+// Caller must ensure such a script exists.
+func otherScript(scripts []uax24.Script, skip uax24.Script) uax24.Script {
+	for _, s := range scripts {
+		if s != skip {
+			return s
+		}
+	}
+	return uax24.ScriptUnknown
 }
 
 // GetIdentifierScripts returns the scripts used in an identifier string.

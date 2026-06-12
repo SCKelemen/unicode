@@ -106,13 +106,63 @@ func TestGetRestrictionLevel(t *testing.T) {
 			want:  SingleScript,
 		},
 		{
-			name:  "Latin + Han (minimally restrictive)",
+			// Latin + Han is a subset of {Latin, Han, Hiragana, Katakana}
+			// (Latn + Jpan), so this is HighlyRestrictive per UAX #39 §5.2
+			// Table 1.
+			name:  "Latin + Han (highly restrictive)",
 			input: "hello世界",
+			want:  HighlyRestrictive,
+		},
+		{
+			// Latin + Cyrillic falls out of ModeratelyRestrictive because
+			// Cyrillic is explicitly excluded; it lands at MinimallyRestrictive.
+			name:  "Mixed Cyrillic and Latin",
+			input: "hello мир",
 			want:  MinimallyRestrictive,
 		},
 		{
-			name:  "Mixed Cyrillic and Latin",
-			input: "hello мир",
+			// Latin + Han + Hiragana matches Latn + Jpan exactly.
+			name:  "Latin + Han + Hiragana (highly restrictive)",
+			input: "hello漢字ひらがな",
+			want:  HighlyRestrictive,
+		},
+		{
+			// Latin + Han + Katakana also fits Latn + Jpan.
+			name:  "Latin + Han + Katakana (highly restrictive)",
+			input: "helloカタカナ漢",
+			want:  HighlyRestrictive,
+		},
+		{
+			// Latin + Han + Hangul matches Latn + Kore.
+			name:  "Latin + Han + Hangul (highly restrictive)",
+			input: "hello漢字ㅎ",
+			want:  HighlyRestrictive,
+		},
+		{
+			// Latin + Han + Bopomofo matches Latn + Hanb.
+			name:  "Latin + Han + Bopomofo (highly restrictive)",
+			input: "hello漢ㄅ",
+			want:  HighlyRestrictive,
+		},
+		{
+			// Latin + Arabic is ModeratelyRestrictive: a single non-excluded
+			// Recommended script paired with Latin.
+			name:  "Latin + Arabic (moderately restrictive)",
+			input: "helloمرحبا",
+			want:  ModeratelyRestrictive,
+		},
+		{
+			// Latin + Greek collapses to MinimallyRestrictive because Greek
+			// is excluded from the ModeratelyRestrictive set.
+			name:  "Latin + Greek (minimally restrictive)",
+			input: "helloαβ",
+			want:  MinimallyRestrictive,
+		},
+		{
+			// Latin + Cyrillic + Greek is too broad for any of the higher
+			// levels, so it lands at MinimallyRestrictive.
+			name:  "Latin + Cyrillic + Greek (minimally restrictive)",
+			input: "helloмαβ",
 			want:  MinimallyRestrictive,
 		},
 		{
