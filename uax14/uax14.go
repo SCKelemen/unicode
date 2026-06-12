@@ -30,7 +30,6 @@ package uax14
 
 import (
 	"unicode"
-	"unicode/utf8"
 
 	"github.com/SCKelemen/unicode/v6/uax11"
 )
@@ -4316,7 +4315,12 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 	var breakPoints []int
 	breakPoints = append(breakPoints, 0) // Start is always a break point
 
-	runes := []rune(text)
+	// Decode using DecodeRuneInString so byte offsets stay aligned with the
+	// ORIGINAL input bytes. []rune(text) + utf8.RuneLen drift on malformed
+	// UTF-8 because each invalid byte gets re-encoded as the 3-byte U+FFFD.
+	// utf8.DecodeRuneInString returns (RuneError, 1) for a single invalid byte,
+	// matching the stdlib's treatment of bad UTF-8 sequences.
+	runes, bytePositions := decodeRunesWithOffsets(text)
 	if len(runes) == 0 {
 		return breakPoints
 	}
@@ -4330,8 +4334,8 @@ func FindLineBreakOpportunities(text string, hyphens Hyphens) []int {
 
 	bytePos := 0
 	for i := 1; i < len(runes); i++ {
-		// Track byte position for rune index i without repeated string slicing.
-		bytePos += utf8.RuneLen(runes[i-1])
+		// Byte position of rune i in the ORIGINAL input.
+		bytePos = bytePositions[i]
 		currClass := getBreakClass(runes[i])
 
 		// LB9: SA characters that are combining marks (Mn, Mc) should be treated as CM
